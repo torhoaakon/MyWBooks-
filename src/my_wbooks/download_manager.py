@@ -8,6 +8,9 @@ from bs4 import BeautifulSoup
 from PIL import Image
 from pydantic_core import Url
 
+# TODO
+## - Logging
+
 
 class DownlaodManager:
     hdrs = {"User-Agent": "Mozilla/5.0"}
