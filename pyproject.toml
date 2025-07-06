@@ -1,7 +1,15 @@
 [project]
-name = "backend"
+name = "MyWBooks"
 version = "0.1.0"
-description = "Add your description here"
+description = "The WBooks can manage your collection of web books. Download new chapters, convert to epub and send it to your reading device"
 readme = "README.md"
+authors = [
+    { name = "Nokorot", email = "torhaakon2012@hotmail.com" }
+]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "bs4>=0.0.2",
+    "fastapi[standard]>=0.115.14",
+    "pillow>=11.3.0",
+]
+
