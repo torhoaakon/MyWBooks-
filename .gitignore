@@ -1,3 +1,8 @@
+# Project specific
+cache
+out
+
+
 # Python-generated files
 __pycache__/
 *.py[oc]
@@ -8,3 +13,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Vim 
+.session.vim
