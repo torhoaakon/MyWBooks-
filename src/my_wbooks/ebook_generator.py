@@ -6,8 +6,9 @@ from typing import NamedTuple, Optional
 
 from bs4 import BeautifulSoup, Tag
 from ebooklib import epub
+from pydantic_core import Url
 
-from my_wbooks.book import BookConfig, Chapter, Image, ImageMap
+from my_wbooks.book import BookConfig, Chapter, Image
 from my_wbooks.download_manager import DownlaodManager
 
 
@@ -137,10 +138,17 @@ class EbookGenerator:
             ebook.add_item(css)
 
         # Add cover image
-        cover_img_url = cf.cover_image
-        if cover_img_url:
-            dm = self.download_manager
-            cover_img_data = dm.get_and_cache_image_data(cover_img_url)
+        cf.cover_image
+        if cf.cover_image is not None:
+            if isinstance(cf.cover_image, Url):
+                cover_img_data = self.download_manager.get_and_cache_image_data(
+                    cf.cover_image
+                )
+            elif isinstance(cf.cover_image, Path):
+                with open(cf.cover_image, "rb") as f:
+                    cover_img_data = f.read()
+            else:
+                assert False, "Unreachable"
             ebook.set_cover(self.config.epub_cover_image_path, cover_img_data)
 
         # Include the chapters

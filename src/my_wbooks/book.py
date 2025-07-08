@@ -1,6 +1,7 @@
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import NamedTuple, Optional
 
 from pydantic_core import Url
@@ -79,4 +80,4 @@ class BookConfig(NamedTuple):
     title: str
     language: str
     author: str
-    cover_image: Url  # Maybe this should be image type
+    cover_image: Url | Path  # Maybe this should be image type
