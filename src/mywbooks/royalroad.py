@@ -14,10 +14,19 @@ from mywbooks.book import Chapter
 from mywbooks.ebook_generator import ChapterPageContent, ChapterPageExtractor
 from mywbooks.web_book import WebBook, WebBookData
 
-# TODO ? :
-# class RoyalRoadDownloader():
-#     base_url = "https://www.royalroad.com"
-#     url_pattern = "^(https?://)?(www\.)?royalroad\.com/fiction/(?P<id>[\d]+)(/.*)?$"
+CHAPTER_ID_RE = re.compile(r"/chapter/(\d+)", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class ChapterRef:
+    id: str
+    url: str
+    title: str | None = None
+
+
+def chapter_id_from_url(url: str) -> str | None:
+    m = CHAPTER_ID_RE.search(url)
+    return m.group(1) if m else None
 
 
 class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
@@ -84,11 +93,6 @@ class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
                 element.extract()
 
 
-@dataclass
-class RoyalRoad_WebBookData:
-    fiction_page: Url
-
-
 class RoyalRoad_WebBook(WebBook):
     """Concrete WebBook for a RoyalRoad fiction page."""
 
@@ -119,7 +123,18 @@ class RoyalRoad_WebBook(WebBook):
                 title=page.title or f"Chapter {idx+1}",
                 content=content_html,
                 images=images,
+                source_url=ch_url,
             )
+
+    def list_chapter_refs(self) -> list[ChapterRef]:
+        """Return ToC-derived chapter references without downloading content."""
+        refs: list[ChapterRef] = []
+        for u in self._chapter_urls:  # these come from #chapters ToC
+            chap_id = chapter_id_from_url(u)
+            if not chap_id:
+                continue
+            refs.append(ChapterRef(id=chap_id, url=u, title=None))
+        return refs
 
 
 # ----------------- helpers -----------------
@@ -185,11 +200,8 @@ def _parse_fiction_page(base_url: str, html: str) -> tuple[WebBookData, list[str
     return meta, chapter_links
 
 
-CHAPTER_ID_RE = re.compile(r"/chapter/(\d+)", re.IGNORECASE)
-
-
 def _extract_toc_chapter_links(base_url: str, bs) -> list[str]:
-    seen: dict[int, str] = {}
+    seen: dict[str, str] = {}
     toc = bs.select_one("#chapters")  # the ToC table
     if not toc:
         return []
@@ -199,11 +211,9 @@ def _extract_toc_chapter_links(base_url: str, bs) -> list[str]:
         if not href:
             continue
         full = urljoin(base_url, href)
-        m = CHAPTER_ID_RE.search(full)
-        if not m:
-            continue
-        chap_id = int(m.group(1))
-        if chap_id not in seen:
+        chap_id = chapter_id_from_url(full)
+
+        if chap_id is not None and chap_id not in seen:
             # store the first URL we encounter for this chapter id
             seen[chap_id] = full
 

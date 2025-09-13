@@ -61,6 +61,8 @@ class Chapter(NamedTuple):
     content: str
     images: ImageMap
 
+    source_url: Optional[str]
+
     def get_content(self, include_images: bool, include_chapter_title: bool) -> str:
         content: list[str] = []
 
