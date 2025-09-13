@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Iterable, Optional, override
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup, ResultSet, Tag
 from pydantic_core import Url
@@ -13,21 +13,17 @@ from .ebook_generator import ChapterPageContent, ChapterPageExtractor
 from .utils import _get_text
 from .web_book import WebBook, WebBookData
 
-CHAPTER_ID_RE = re.compile(r"/chapter/(\d+)", re.IGNORECASE)
-
-
-@dataclass(frozen=True)
-class ChapterRef:
-    id: str
-    url: str
-    title: str | None = None
-
-
-# def chapter_id_from_url(url: str) -> str | None:
-#     m = CHAPTER_ID_RE.search(url)
-#     return m.group(1) if m else None
-
 PROVIDER_PREFIX = "royalroad"
+
+CHAPTER_ID_RE = re.compile(r"/chapter/(\d+)", re.IGNORECASE)
+FICTION_ID_RE = re.compile(r"/fiction/(\d+)(?:/|$)", re.IGNORECASE)
+
+
+def rr_fiction_uid_from_url(url: str) -> str | None:
+    m = FICTION_ID_RE.search(urlparse(url).path)
+    if not m:
+        return None
+    return f"{PROVIDER_PREFIX}:{m.group(1)}"
 
 
 def chapter_id_from_url(url: str) -> str | None:
@@ -44,6 +40,13 @@ def canonical_rr_chapter_url(chapter_id_prefixed: str) -> str:
     # "royalroad:1269041" -> "https://www.royalroad.com/fiction/chapter/1269041"
     _, raw = chapter_id_prefixed.split(":", 1)
     return f"https://www.royalroad.com/fiction/chapter/{raw}"
+
+
+@dataclass(frozen=True)
+class ChapterRef:
+    id: str
+    url: str
+    title: str | None = None
 
 
 class RoyalRoadChapterPageExtractor(ChapterPageExtractor):

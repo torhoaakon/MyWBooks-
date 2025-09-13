@@ -42,11 +42,11 @@ class User(Base):
 class Book(Base):
     __tablename__ = "books"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
     provider: Mapped[Provider] = mapped_column(Enum(Provider))
-    provider_fiction_id: Mapped[str | None] = mapped_column(
-        String(64), nullable=True
-    )  # optional
+    provider_fiction_uid: Mapped[str | None] = mapped_column(String(128), index=True)
     source_url: Mapped[str] = mapped_column(String(1024))
+
     title: Mapped[str] = mapped_column(String(255))
     author: Mapped[str | None] = mapped_column(String(255))
     language: Mapped[str] = mapped_column(String(16), default="en")
@@ -64,8 +64,7 @@ class Book(Base):
     )
 
     __table_args__ = (
-        # avoid duping same source+provider
-        UniqueConstraint("provider", "source_url", name="uq_book_provider_source"),
+        UniqueConstraint("provider_fiction_uid", name="uq_book_provider_fiction_uid"),
     )
 
 

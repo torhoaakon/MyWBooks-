@@ -7,7 +7,12 @@ from mywbooks.utils import utcnow
 
 from .db import SessionLocal
 from .models import Book, Chapter, Provider
-from .royalroad import RoyalRoad_WebBook, RoyalRoadChapterPageExtractor, _get_text
+from .royalroad import (
+    RoyalRoad_WebBook,
+    RoyalRoadChapterPageExtractor,
+    _get_text,
+    rr_fiction_uid_from_url,
+)
 
 
 def upsert_royalroad_book_from_url(fiction_url: str) -> int:
@@ -16,17 +21,19 @@ def upsert_royalroad_book_from_url(fiction_url: str) -> int:
 
 
 def upsert_royalroad_book(wb: RoyalRoad_WebBook) -> int:
+    uid = rr_fiction_uid_from_url(wb.fiction_url)
+    if not uid:
+        raise ValueError("Could not extract RoyalRoad fiction id from URL")
+
     with SessionLocal() as db:
         book = db.execute(
-            select(Book).where(
-                Book.provider == Provider.ROYALROAD,
-                Book.source_url == wb.fiction_url,
-            )
+            select(Book).where(Book.provider_fiction_uid == uid)
         ).scalar_one_or_none()
 
         if not book:
             book = Book(
                 provider=Provider.ROYALROAD,
+                provider_fiction_uid=uid,
                 source_url=wb.fiction_url,
                 title=wb.data.title,
                 author=wb.data.author,
