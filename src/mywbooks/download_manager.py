@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from PIL import Image
 from pydantic_core import Url
 
-from my_wbooks.utils import url_hash
+from mywbooks.utils import url_hash
 
 # TODO
 ## - Logging

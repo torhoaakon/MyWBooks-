@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from my_wbooks.download_manager import DownlaodManager
-from my_wbooks.ebook_generator import BookConfig, EbookGenerator, EbookGeneratorConfig
-from my_wbooks.patreon import Patreon_ChapterPageExtractor
+from mywbooks.download_manager import DownlaodManager
+from mywbooks.ebook_generator import BookConfig, EbookGenerator, EbookGeneratorConfig
+from mywbooks.patreon import Patreon_ChapterPageExtractor
 
 base_path = Path("./examples")
 KINDLE_CSS = base_path / "kindle.css"
@@ -33,8 +33,8 @@ gen = EbookGenerator("netherwitch", chapter_page_exacter, download_manager, conf
 output_path = Path("out")
 output_path.mkdir(exist_ok=True)
 
-with open(base_path / "Netherwitch - 41 _ Patreon.html", "r") as f:
-    gen.add_chapter_page(f.read())
-with open(base_path / "Netherwitch - 42 _ Patreon.html", "r") as f:
-    gen.add_chapter_page(f.read())
+for ch in range(40, 50):
+    with open(base_path / "Netherwitch" / f"Netherwitch - {ch}.html", "r") as f:
+        gen.add_chapter_page(f.read())
+
 gen.export_as_epub(output_path / f"netherwitch.epub")

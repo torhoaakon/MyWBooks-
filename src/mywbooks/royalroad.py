@@ -1,9 +1,12 @@
 import re
+from dataclasses import dataclass
 from typing import Optional, override
 
 from bs4 import BeautifulSoup, ResultSet, Tag
+from pydantic_core import Url
 
-from my_wbooks.ebook_generator import ChapterPageContent, ChapterPageExtractor
+from mywbooks.ebook_generator import ChapterPageContent, ChapterPageExtractor
+from mywbooks.web_book import WebBook
 
 # TODO ? :
 # class RoyalRoadDownloader():
@@ -11,8 +14,16 @@ from my_wbooks.ebook_generator import ChapterPageContent, ChapterPageExtractor
 #     url_pattern = "^(https?://)?(www\.)?royalroad\.com/fiction/(?P<id>[\d]+)(/.*)?$"
 
 
-class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
+@dataclass
+class RoyalRoad_WebBookData:
+    fiction_page: Url
 
+
+class RoyalRoad_WebBook(WebBook):
+    pass
+
+
+class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
     fiction_title_selector: str = "div.fic-header h1"
     fiction_content_selector: str = "div.chapter-inner"
 

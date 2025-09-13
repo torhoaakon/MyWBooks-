@@ -3,9 +3,9 @@ from pathlib import Path
 
 from pydantic_core import Url
 
-from my_wbooks.download_manager import DownlaodManager
-from my_wbooks.ebook_generator import BookConfig, EbookGenerator, EbookGeneratorConfig
-from my_wbooks.royalroad import RoyalRoadChapterPageExtractor
+from mywbooks.download_manager import DownlaodManager
+from mywbooks.ebook_generator import BookConfig, EbookGenerator, EbookGeneratorConfig
+from mywbooks.royalroad import RoyalRoadChapterPageExtractor
 
 base_path = Path("./examples")
 chapter_filepath = base_path / "Untouchable_chapter-5.html"

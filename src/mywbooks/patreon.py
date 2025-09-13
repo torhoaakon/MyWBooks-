@@ -2,7 +2,7 @@ from typing import Optional, override
 
 from bs4 import BeautifulSoup, ResultSet, Tag
 
-from my_wbooks.ebook_generator import ChapterPageContent, ChapterPageExtractor
+from mywbooks.ebook_generator import ChapterPageContent, ChapterPageExtractor
 
 # TODO: https://www.patreon.com/portal
 # Maybe server- or client- side

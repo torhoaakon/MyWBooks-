@@ -6,8 +6,8 @@ from typing import NamedTuple, Optional
 
 from pydantic_core import Url
 
-from my_wbooks.download_manager import DownlaodManager
-from my_wbooks.utils import url_hash
+from mywbooks.download_manager import DownlaodManager
+from mywbooks.utils import url_hash
 
 ImageID = str
 

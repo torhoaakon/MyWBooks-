@@ -1,6 +1,6 @@
 import logging
 import sys
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import NamedTuple, Optional
 
@@ -8,8 +8,8 @@ from bs4 import BeautifulSoup, Tag
 from ebooklib import epub
 from pydantic_core import Url
 
-from my_wbooks.book import BookConfig, Chapter, Image
-from my_wbooks.download_manager import DownlaodManager
+from mywbooks.book import BookConfig, Chapter, Image
+from mywbooks.download_manager import DownlaodManager
 
 
 class ChapterPageContent(NamedTuple):
@@ -18,7 +18,7 @@ class ChapterPageContent(NamedTuple):
     # ? image_urls: list[str]
 
 
-class ChapterPageExtractor:
+class ChapterPageExtractor(ABC):
 
     @abstractmethod
     def extract_chapter(
