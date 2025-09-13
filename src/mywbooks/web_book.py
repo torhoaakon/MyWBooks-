@@ -1,7 +1,12 @@
-from abc import abstractmethod
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Iterable
 
 from pydantic_core import Url
+
+from .book import Chapter  # reuse your existing representation
 
 
 @dataclass
@@ -12,12 +17,14 @@ class WebBookData:
     cover_image: Url
 
 
-class WebBook:
+class WebBook(ABC):
     data: WebBookData
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: WebBookData) -> None:
         self.data = data
 
     @abstractmethod
-    def get_chapters():
-        pass
+    def get_chapters(
+        self, *, include_images: bool = True, include_chapter_title: bool = True
+    ) -> Iterable[Chapter]:
+        """Yield Chapter objects for this web book."""

@@ -1,4 +1,3 @@
-import pathlib
 from pathlib import Path
 
 from pydantic_core import Url
