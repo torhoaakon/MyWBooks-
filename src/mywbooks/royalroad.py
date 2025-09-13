@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import re
-from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable, Optional, override
 from urllib.parse import urljoin
 
-import httpx
 from bs4 import BeautifulSoup, ResultSet, Tag
 from pydantic_core import Url
 
-from mywbooks.book import Chapter
-from mywbooks.ebook_generator import ChapterPageContent, ChapterPageExtractor
-from mywbooks.web_book import WebBook, WebBookData
+from .book import Chapter
+from .ebook_generator import ChapterPageContent, ChapterPageExtractor
+from .utils import _get_text
+from .web_book import WebBook, WebBookData
 
 CHAPTER_ID_RE = re.compile(r"/chapter/(\d+)", re.IGNORECASE)
 
@@ -24,9 +23,27 @@ class ChapterRef:
     title: str | None = None
 
 
+# def chapter_id_from_url(url: str) -> str | None:
+#     m = CHAPTER_ID_RE.search(url)
+#     return m.group(1) if m else None
+
+PROVIDER_PREFIX = "royalroad"
+
+
 def chapter_id_from_url(url: str) -> str | None:
+    """
+    Extract a RoyalRoad chapter id and return a *namespaced* id, e.g. "royalroad:1269041".
+    """
     m = CHAPTER_ID_RE.search(url)
-    return m.group(1) if m else None
+    if not m:
+        return None
+    return f"{PROVIDER_PREFIX}:{m.group(1)}"
+
+
+def canonical_rr_chapter_url(chapter_id_prefixed: str) -> str:
+    # "royalroad:1269041" -> "https://www.royalroad.com/fiction/chapter/1269041"
+    _, raw = chapter_id_prefixed.split(":", 1)
+    return f"https://www.royalroad.com/fiction/chapter/{raw}"
 
 
 class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
@@ -138,17 +155,6 @@ class RoyalRoad_WebBook(WebBook):
 
 
 # ----------------- helpers -----------------
-
-
-def _get_text(url: str, *, timeout: float = 30.0) -> str:
-    # You can swap this to your DownloadManager later if you prefer.
-    headers = {"User-Agent": "MyWBooksBot/0.1 (+https://example.com)"}
-    with httpx.Client(
-        timeout=timeout, headers=headers, follow_redirects=True
-    ) as client:
-        r = client.get(url)
-        r.raise_for_status()
-        return r.text
 
 
 def _parse_fiction_page(base_url: str, html: str) -> tuple[WebBookData, list[str]]:

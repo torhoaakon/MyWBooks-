@@ -1,28 +1,22 @@
 from __future__ import annotations
 
-import re
-
+from bs4 import BeautifulSoup
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+
+from mywbooks.utils import utcnow
 
 from .db import SessionLocal
 from .models import Book, Chapter, Provider
-from .royalroad import RoyalRoad_WebBook, RoyalRoad_WebBookData, chapter_id_from_url
+from .royalroad import RoyalRoad_WebBook, RoyalRoadChapterPageExtractor, _get_text
 
 
 def upsert_royalroad_book_from_url(fiction_url: str) -> int:
-    """
-    Fetch a RoyalRoad fiction page, parse chapters via your WebBook,
-    and upsert into the DB. Returns book_id.
-    """
     wb = RoyalRoad_WebBook(fiction_url)
     return upsert_royalroad_book(wb)
 
 
 def upsert_royalroad_book(wb: RoyalRoad_WebBook) -> int:
-
     with SessionLocal() as db:
-        # Find or create book
         book = db.execute(
             select(Book).where(
                 Book.provider == Provider.ROYALROAD,
@@ -43,53 +37,97 @@ def upsert_royalroad_book(wb: RoyalRoad_WebBook) -> int:
             db.commit()
             db.refresh(book)
         else:
-            # Update basic metadata (optional)
+            # keep metadata fresh
             book.title = wb.data.title or book.title
             book.author = wb.data.author or book.author
             book.cover_url = str(wb.data.cover_image) or book.cover_url
             db.commit()
 
-        db.commit()
+        _upsert_chapter_index(wb, book.id)
         return book.id
 
 
-def upsert_chapters(wb: RoyalRoad_WebBook, book: Book):
-    # Upsert chapters
+def _upsert_chapter_index(wb: RoyalRoad_WebBook, book_id: int) -> None:
+    """Insert/update Chapter rows with provider_chapter_id + URL only."""
+    refs = wb.list_chapter_refs()
     with SessionLocal() as db:
-        idx = 0
-        for ch in wb.get_chapters(include_images=True, include_chapter_title=True):
-            chap_id = (
-                chapter_id_from_url(ch.source_url) if chsource_url is not None else None
-            )
-            # If Chapter class doesn't store source_url yet, you can pass the URL via a small wrapper
-            # For now, fall back to idx as unique position if we don't have chap_id
-            chap_id = chap_id or str(idx)
-
+        for idx, ref in enumerate(refs):
             existing = db.execute(
                 select(Chapter).where(
-                    Chapter.book_id == book.id,
-                    Chapter.provider_chapter_id == chap_id,
+                    Chapter.book_id == book_id,
+                    Chapter.provider_chapter_id == ref.id,
                 )
             ).scalar_one_or_none()
 
             if not existing:
                 db.add(
                     Chapter(
-                        book_id=book.id,
+                        book_id=book_id,
                         index=idx,
-                        title=ch.title or f"Chapter {idx+1}",
-                        content_html=ch.get_content(
-                            include_images=True, include_chapter_title=True
-                        ),
-                        provider_chapter_id=chap_id,
-                        source_url=ch.source_url if hasattr(ch, "source_url") else "",
+                        title=ref.title or f"Chapter {idx+1}",
+                        content_html=None,
+                        provider_chapter_id=ref.id,
+                        source_url=ref.url,
+                        is_fetched=False,
                     )
                 )
             else:
-                # Optional: update content/title if changed
-                existing.title = ch.title or existing.title
-                existing.content_html = ch.get_content(
-                    include_images=True, include_chapter_title=True
-                )
+                existing.index = idx
+                if ref.title:
+                    existing.title = ref.title
+                existing.source_url = ref.url
+        db.commit()
 
-            idx += 1
+
+def fetch_missing_chapters_for_book(book_id: int, limit: int | None = None) -> int:
+    """
+    Download chapter HTML for chapters with no content yet.
+    Returns number of chapters fetched.
+    """
+    count = 0
+    with SessionLocal() as db:
+        book = db.get(Book, book_id)
+        if not book:
+            return 0
+        extractor = _select_extractor_for_book(book)
+
+        q = (
+            db.query(Chapter)
+            .filter(
+                Chapter.book_id == book_id,
+                Chapter.content_html.is_(None),
+            )
+            .order_by(Chapter.index.asc())
+        )
+
+        if limit:
+            q = q.limit(limit)
+
+        chapters = q.all()
+
+        for ch in chapters:
+            html = _get_text(ch.source_url)  # or your DownloadManager
+            bs = BeautifulSoup(html, "lxml")
+            page = extractor.extract_chapter(bs)
+            if not page or not page.content:
+                continue
+
+            ch.title = page.title or ch.title
+            ch.content_html = str(page.content)
+            ch.fetched_at = utcnow()
+            ch.is_fetched = True
+            count += 1
+
+        db.commit()
+    return count
+
+
+# ----------------- helpers -----------------
+
+
+def _select_extractor_for_book(book: Book):
+    if book.provider == Provider.ROYALROAD:
+        return RoyalRoadChapterPageExtractor()
+    # elif book.provider == Provider.PATREON: return PatreonChapterPageExtractor()
+    # elif ... more providers
+    raise ValueError(f"No extractor for provider {book.provider}")

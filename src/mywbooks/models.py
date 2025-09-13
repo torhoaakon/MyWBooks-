@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import (
@@ -9,18 +9,15 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
-    ReturnsRows,
     String,
     Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from mywbooks.utils import utcnow
+
 from .db import Base
-
-
-def utcnow():
-    return datetime.now(timezone.utc)
 
 
 class Provider(StrEnum):
@@ -86,6 +83,7 @@ class Chapter(Base):
     source_url: Mapped[str] = mapped_column(String(1024))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow())
     fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_fetched: Mapped[bool] = mapped_column(Boolean)
 
     book: Mapped[Book] = relationship(back_populates="chapters")
 

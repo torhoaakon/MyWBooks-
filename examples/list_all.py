@@ -10,6 +10,10 @@ with SessionLocal() as db:
 
     print("\n=== Books ===")
     for b in db.query(Book).all():
-        print(f"{b.id}: {b.title} by {b.author} [{b.provider}]")
-        print(f"  URL: {b.source_url}")
-        print(f"  Chapters: {len(b.chapters)}")
+        ch_count = db.query(Chapter).filter(Chapter.book_id == b.id).count()
+        fetched = (
+            db.query(Chapter)
+            .filter(Chapter.book_id == b.id, Chapter.content_html.isnot(None))
+            .count()
+        )
+        print(f"{b.id}: {b.title} [{b.provider}] chapters={ch_count} fetched={fetched}")
