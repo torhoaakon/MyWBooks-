@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup, ResultSet, Tag
 from pydantic_core import Url
 
 from .book import Chapter
-from .ebook_generator import ChapterPageContent, ChapterPageExtractor
+from .ebook_generator import ChapterPageContent, ChapterPageExtractor, ExtractOptions
 from .utils import _get_text
 from .web_book import WebBook, WebBookData
 
@@ -42,6 +42,29 @@ def canonical_rr_chapter_url(chapter_id_prefixed: str) -> str:
     return f"https://www.royalroad.com/fiction/chapter/{raw}"
 
 
+class ChapterParseError(Exception):
+    def __init__(self, reason: str, *, url: str | None, tried_selectors: list[str]):
+        self.reason = reason
+        self.url = url
+        self.tried_selectors = tried_selectors
+        msg = f"Chapter parse failed: {reason}. Tried selectors: {tried_selectors}"
+        if url:
+            msg += f" | url={url}"
+        super().__init__(msg)
+
+
+class FictionParseError(Exception):
+    def __init__(self, reason: str, *, url: str | None, tried_selectors: list[str]):
+        self.reason = reason
+        self.url = url
+        self.tried_selectors = tried_selectors
+        msg = f"Fiction parse failed: {reason}. Tried selectors: {tried_selectors}"
+        if url:
+            msg += f" | url={url}"
+        super().__init__(msg)
+
+
+# TODO: This should not be here but more general
 @dataclass(frozen=True)
 class ChapterRef:
     id: str
@@ -50,43 +73,88 @@ class ChapterRef:
 
 
 class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
-    fiction_title_selector: str = "div.fic-header h1"
-    fiction_content_selector: str = "div.chapter-inner"
+    """
+    Extract title + content from a RoyalRoad chapter page.
+    Now tries multiple selectors (id or class) and gives clear errors.
+    """
+
+    # broadened sets; order matters (earlier = preferred)
+    TITLE_SELECTORS: list[str] = [
+        "div.fic-header h1",
+        "#chapter-inner h1",
+        "#chapter-content h1",
+        ".chapter-inner h1",
+        # "article h1",
+        # "h1",
+    ]
+
+    CONTENT_SELECTORS: list[str] = [
+        "div.chapter-inner",
+        "#chapter-inner",
+        "#chapter-content",
+        "div#chapter-content",
+        "article.chapter-content",
+        "div.chapter-content",
+        # "article",
+        # "main",
+    ]
+
+    # fiction_title_selector: str = "div.fic-header h1"
+    # fiction_content_selector: str = "div.chapter-inner"
+
+    def _first_match(self, soup, selectors: Iterable[str]):
+        for sel in selectors:
+            node = soup.select_one(sel)
+            if node is not None:
+                return node, sel
+        return None, None
 
     @override
     def extract_chapter(
-        self, page_content_bs: BeautifulSoup
+        self,
+        page_content_bs: BeautifulSoup,
+        *,
+        options: ExtractOptions | None = None,
     ) -> Optional[ChapterPageContent]:
+        opts = options or ExtractOptions()
 
-        # NOTE: The chapter title could be an
-        # optional kwarument. Since it may already be known before the page is downloaded. For example if it is extracted from the chapter list instead of  from this page
-        # (This may not be what you want, but having the option would be nice)
+        # title
+        title_node, _ = self._first_match(page_content_bs, self.TITLE_SELECTORS)
+        title = title_node.get_text(strip=True) if title_node else None
 
-        bs = page_content_bs
+        # content
+        content_node, _ = self._first_match(page_content_bs, self.CONTENT_SELECTORS)
 
-        fic_titles: ResultSet[Tag] = bs.select(self.fiction_title_selector)
+        if not content_node:
+            if opts.strict:
+                raise ChapterParseError(
+                    reason="Could not locate chapter content",
+                    url=opts.url,
+                    tried_selectors=self.CONTENT_SELECTORS,
+                )
+            return None
 
-        # NOTE: IDEA: Chapter image could be a thing
-        # For example included every time it changes ??
+        if not title:
+            if opts.fallback_title:
+                title = opts.fallback_title
+            else:
+                inner = content_node.select_one("h1, h2")
+                if inner:
+                    title = inner.get_text(strip=True)
+                elif opts.strict:
+                    raise ChapterParseError(
+                        "Could not locate chapter title",
+                        url=opts.url,
+                        tried_selectors=self.TITLE_SELECTORS,
+                    )
+                else:
+                    title = "Untitled Chapter"
 
-        # TODO: This should be logging instead
-        assert len(fic_titles) == 1
+        # TODO: We also need to do this:
+        # hidden_class_names = self.identify_hiddden_class_names(soup)
+        # self.dispose_hidden_elements(hidden_class_names, inner_content)
 
-        assert len(fic_titles[0]) == 1
-
-        fic_title = str(fic_titles[0].contents[0])
-
-        # TODO: Authors notes
-
-        chapter_inner_res = bs.select(self.fiction_content_selector)
-        assert len(chapter_inner_res) == 1
-
-        inner_content: Tag = chapter_inner_res[0]
-
-        hidden_class_names = self.identify_hiddden_class_names(bs)
-        self.dispose_hidden_elements(hidden_class_names, inner_content)
-
-        return ChapterPageContent(title=fic_title, content=inner_content)
+        return ChapterPageContent(title=title, content=content_node)
 
     def identify_hiddden_class_names(self, bs: BeautifulSoup) -> list[str]:
         hidden_class_names: list[str] = []
@@ -118,9 +186,8 @@ class RoyalRoad_WebBook(WebBook):
 
     def __init__(self, fiction_url: str):
         self.fiction_url = fiction_url
-        # Parse fiction page once for metadata + initial chapter links
         html = _get_text(self.fiction_url)
-        meta, chapter_urls = _parse_fiction_page(self.fiction_url, html)
+        meta, chapter_urls = _parse_fiction_page(self.fiction_url, html, strict=True)
         super().__init__(meta)
         self._chapter_urls = chapter_urls
         self._chapter_extractor = RoyalRoadChapterPageExtractor()
@@ -131,7 +198,9 @@ class RoyalRoad_WebBook(WebBook):
         for idx, ch_url in enumerate(self._chapter_urls):
             ch_html = _get_text(ch_url)
             bs = BeautifulSoup(ch_html, "lxml")
-            page = self._chapter_extractor.extract_chapter(bs)
+            page = self._chapter_extractor.extract_chapter(
+                bs, options=ExtractOptions(url=ch_url, strict=True, fallback_title=None)
+            )
             if page is None:
                 continue
 
@@ -160,28 +229,32 @@ class RoyalRoad_WebBook(WebBook):
 # ----------------- helpers -----------------
 
 
-def _parse_fiction_page(base_url: str, html: str) -> tuple[WebBookData, list[str]]:
+def _parse_fiction_page(
+    base_url: str,
+    html: str,
+    chapter_toc_strategies: int = 0,
+    strict: bool = True,
+) -> tuple[WebBookData, list[str]]:
     """
     Extract book metadata (title, author, cover, language) and all chapter URLs
     from a RoyalRoad fiction page.
     """
     bs = BeautifulSoup(html, "lxml")
 
-    # Title: often under header like "div.fic-header h1" (same selector you use for chapter titles)
+    # Title
     h1 = bs.select_one("div.fic-header h1") or bs.select_one("h1")
     title = h1.get_text(strip=True) if h1 else "Untitled"
 
-    # Author: RR usually links author name somewhere in header
+    # Author
     author_tag = bs.select_one('a[href*="/profile/"], a[href*="/author/"]')
     author = author_tag.get_text(strip=True) if author_tag else "Unknown"
 
-    # Cover: common classes: .fic-header .cover or img[src*="royalroadcdn"]
+    # Cover
     cover_img = (
         bs.select_one("div.fic-header img")
         or bs.select_one('img[src*="royalroadcdn"]')
         or bs.select_one("img")
     )
-
     cover_src = (
         str(cover_img["src"]).strip()
         if (cover_img and cover_img.has_attr("src"))
@@ -189,7 +262,7 @@ def _parse_fiction_page(base_url: str, html: str) -> tuple[WebBookData, list[str
     )
     cover = urljoin(base_url, cover_src)
 
-    # Language: RR is predominantly English. If there’s a hint in meta, use it; else default.
+    # Language
     lang_meta = bs.select_one(
         'meta[http-equiv="content-language"], meta[name="language"]'
     )
@@ -198,7 +271,9 @@ def _parse_fiction_page(base_url: str, html: str) -> tuple[WebBookData, list[str
     ).lower()
 
     # Chapters:
-    chapter_links = _extract_toc_chapter_links(base_url, bs)
+    chapter_links = _extract_toc_chapter_links(
+        base_url, bs, strict=strict, strategies=chapter_toc_strategies
+    )
 
     meta = WebBookData(
         title=title,
@@ -209,21 +284,65 @@ def _parse_fiction_page(base_url: str, html: str) -> tuple[WebBookData, list[str
     return meta, chapter_links
 
 
-def _extract_toc_chapter_links(base_url: str, bs) -> list[str]:
-    seen: dict[str, str] = {}
-    toc = bs.select_one("#chapters")  # the ToC table
-    if not toc:
-        return []
+def _extract_toc_chapter_links(
+    base_url: str, bs: BeautifulSoup, *, strategies: int = 0, strict: bool
+) -> list[str]:
+    """
+    Try multiple strategies to find chapter links. If none found and strict=True,
+    raise FictionParseError with selectors tried.
+    """
+    tried: list[str] = []
 
-    for a in toc.select("a[href]"):
-        href = a.get("href", "").strip()
+    strategies = strategies or 2  ## 0 means default:  2
+
+    print("strategies", strategies)
+
+    # 1) Canonical ToC container
+    toc = bs.select_one("#chapters")
+    tried.append("#chapters")
+    if toc:
+        links = _collect_rr_chapter_links(base_url, toc)
+        if links:
+            return links
+
+    # 2) Common table/list containers people see on RR skins
+    if strategies >= 2:
+        selection = "div.chapters, div.chapter-list, div.fic-contents, section"
+        # selection = "table, ul, ol, div.chapter-list, div.fic-contents, section"
+
+        containers = bs.select(selection)
+        tried.append(selection)
+        for c in containers:
+            links = _collect_rr_chapter_links(base_url, c)
+            if links:
+                return links
+
+    # 3) Global fallback: any anchor with /chapter/ anywhere in the page
+    if strategies >= 3:
+        tried.append('a[href*="/chapter/"] (global)')
+        links = _collect_rr_chapter_links(base_url, bs)
+        if links:
+            return links
+
+    if strict:
+        raise FictionParseError(
+            reason="Could not locate chapter table of contents",
+            url=base_url,
+            tried_selectors=tried,
+        )
+
+    return []
+
+
+def _collect_rr_chapter_links(base_url: str, scope: BeautifulSoup | Tag) -> list[str]:
+    seen: dict[str, str] = {}
+    for a in scope.select('a[href*="/chapter/"]'):
+        href = str(a.get("href", "")).strip()
         if not href:
             continue
         full = urljoin(base_url, href)
         chap_id = chapter_id_from_url(full)
-
-        if chap_id is not None and chap_id not in seen:
-            # store the first URL we encounter for this chapter id
+        if chap_id and chap_id not in seen:
             seen[chap_id] = full
 
     # Sort chapter by id
@@ -234,5 +353,4 @@ def _extract_toc_chapter_links(base_url: str, bs) -> list[str]:
     #
     # return sorted(seen.values(), key=_chapter_sort_key)
 
-    # return in appearance order (dict preserves insertion order in 3.7+)
-    return list(seen.values())
+    return list(seen.values())  # preserves appearance order

@@ -1,6 +1,7 @@
 import logging
 import sys
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Optional
 
@@ -12,18 +13,30 @@ from mywbooks.book import BookConfig, Chapter, Image
 from mywbooks.download_manager import DownlaodManager
 
 
-class ChapterPageContent(NamedTuple):
-    title: str
-    content: Tag
+@dataclass
+class ChapterPageContent:
+    title: str | None
+    content: "BeautifulSoup | Tag"
     # ? image_urls: list[str]
 
 
-class ChapterPageExtractor(ABC):
+@dataclass
+class ExtractOptions:
+    url: str | None = None  # helps error messages / logging
+    strict: bool = False  # raise on failure instead of returning None
+    fallback_title: str | None = None
 
+
+class ChapterPageExtractor(ABC):
     @abstractmethod
     def extract_chapter(
-        self, page_content_bs: BeautifulSoup
+        self,
+        page_content_bs: BeautifulSoup,
+        *,
+        options: ExtractOptions | None = None,
     ) -> Optional[ChapterPageContent]:
+        """Parse a single chapter page into (title, content)."""
+
         logging.fatal("Using base {self.class.name}")
         sys.exit(1)
 
