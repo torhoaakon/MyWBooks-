@@ -74,7 +74,7 @@ class EbookGenerator:
 
     def __init__(
         self,
-        book_id,
+        book_id: str,
         chapter_page_exacter: ChapterPageExtractor,
         download_manager: DownlaodManager,
         config: EbookGeneratorConfig,
@@ -86,7 +86,7 @@ class EbookGenerator:
         self.chapters = []
         self.images_new = {}
 
-    def add_chapter_page(self, page_content: str):
+    def add_chapter_page(self, page_content: str, *, src_url: str | None = None):
         # NOTE: This ChapterPageContent type is a bit strange
 
         bs = BeautifulSoup(page_content, features="lxml")
@@ -97,9 +97,10 @@ class EbookGenerator:
 
         self.chapters.append(
             Chapter(
-                title=extracted_content.title,
+                title=extracted_content.title or "No Title",  # TODO: Log no title
                 content=str(extracted_content.content),
                 images=chpr_images,
+                source_url=src_url,
             )
         )
 
