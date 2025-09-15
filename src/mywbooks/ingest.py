@@ -35,19 +35,19 @@ def upsert_royalroad_book(wb: RoyalRoad_WebBook) -> int:
                 provider=Provider.ROYALROAD,
                 provider_fiction_uid=uid,
                 source_url=wb.fiction_url,
-                title=wb.data.title,
-                author=wb.data.author,
-                language=wb.data.language,
-                cover_url=str(wb.data.cover_image),
+                title=wb.bdata.config.title,
+                author=wb.bdata.config.author,
+                language=wb.bdata.config.language,
+                cover_url=str(wb.bdata.config.cover_image),
             )
             db.add(book)
             db.commit()
             db.refresh(book)
         else:
             # keep metadata fresh
-            book.title = wb.data.title or book.title
-            book.author = wb.data.author or book.author
-            book.cover_url = str(wb.data.cover_image) or book.cover_url
+            book.title = wb.bdata.config.title or book.title
+            book.author = wb.bdata.config.author or book.author
+            book.cover_url = str(wb.bdata.config.cover_image) or book.cover_url
             db.commit()
 
         _upsert_chapter_index(wb, book.id)

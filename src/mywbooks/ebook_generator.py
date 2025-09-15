@@ -62,7 +62,7 @@ class EbookGeneratorConfig(NamedTuple):
 class EbookGenerator:
     book_id: str
     config: EbookGeneratorConfig
-    chapter_page_exacter: ChapterPageExtractor
+    chapter_page_exacter: Optional[ChapterPageExtractor]
 
     ebook: epub.EpubBook
 
@@ -75,9 +75,9 @@ class EbookGenerator:
     def __init__(
         self,
         book_id: str,
-        chapter_page_exacter: ChapterPageExtractor,
         download_manager: DownlaodManager,
         config: EbookGeneratorConfig,
+        chapter_page_exacter: Optional[ChapterPageExtractor] = None,
     ):
         self.book_id = book_id
         self.config = config
@@ -86,11 +86,45 @@ class EbookGenerator:
         self.chapters = []
         self.images_new = {}
 
-    def add_chapter_page(self, page_content: str, *, src_url: str | None = None):
+    def add_chapter(self, chapter: Chapter) -> None:
+        """
+        Add a pre-extracted Chapter (from a WebBook). We still:
+          - rewrite <img src="..."> to packaged paths,
+          - collect images into self.images_new.
+        """
+        # Parse the chapter's HTML so we can rewrite image src attributes
+        bs = BeautifulSoup(chapter.content, features="lxml")
+
+        # Reuse the existing image management to:
+        # - dedupe images across chapters
+        # - rewrite <img src> → packaged path (e.g., 'images/<id>.jpg')
+        ch_images = self.manage_chapter_img_tags(bs)
+
+        # Store the (possibly) rewritten HTML string
+        self.chapters.append(
+            Chapter(
+                title=chapter.title,
+                content=str(bs),
+                images=ch_images,
+                source_url=chapter.source_url,
+            )
+        )
+
+    def add_chapter_page(
+        self,
+        page_content: str,
+        *,
+        chapter_page_exactor: Optional[ChapterPageExtractor] = None,
+        src_url: str | None = None,
+    ):
         # NOTE: This ChapterPageContent type is a bit strange
 
         bs = BeautifulSoup(page_content, features="lxml")
-        extracted_content = self.chapter_page_exacter(bs)
+
+        extractor = chapter_page_exactor or self.chapter_page_exacter
+        assert extractor is not None
+
+        extracted_content = extractor(bs)
         assert extracted_content is not None  # TODO: Log error instead
 
         chpr_images = self.manage_chapter_img_tags(extracted_content.content)

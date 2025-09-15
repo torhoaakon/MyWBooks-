@@ -1,6 +1,6 @@
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple, Optional
 
@@ -15,7 +15,7 @@ ImageID = str
 @dataclass(init=True)
 class Image:
     url: str
-    url_hash: str
+    url_hash: ImageID
     # image_hash ? TODO: It would be cool to hash the image itself
     image_data: Optional[bytes] = None
 
@@ -53,13 +53,19 @@ class Image:
         return f"{base_images_path}/{self.get_id()}.{self.get_extension()}"
 
 
-ImageMap = dict[str, Image]
+@dataclass(frozen=True)
+class ChapterRef:
+    """Lightweight reference to a chapter that may not be downloaded yet."""
+
+    id: str  # provider chapter id, e.g. "royalroad:21220:ch-123"
+    url: str  # absolute chapter URL
+    title: Optional[str] = None
 
 
 class Chapter(NamedTuple):
     title: str
     content: str
-    images: ImageMap
+    images: dict[ImageID, Image]
 
     source_url: Optional[str]
 
@@ -78,8 +84,30 @@ class Chapter(NamedTuple):
         return "".join(content)
 
 
-class BookConfig(NamedTuple):
+@dataclass
+class BookConfig:
     title: str
     language: str
     author: str
     cover_image: Url | Path  # Maybe this should be image type
+
+
+@dataclass
+class BookData:
+    """Aggregated extracted data (format agnostic)."""
+
+    config: BookConfig
+    chapters: list[Chapter] = field(default_factory=list)
+    images: dict[ImageID, Image] = field(default_factory=dict)
+
+    def add_chapter(self, chapter: Chapter) -> None:
+        self.images.update(chapter.images)
+        self.chapters.append(chapter)
+
+
+# Export-time options (can be per-export)
+@dataclass
+class ExportOptions:
+    include_images: bool = True
+    include_chapter_titles: bool = True
+    image_resize_max: tuple[int, int] = (1024, 1024)

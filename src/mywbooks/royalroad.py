@@ -8,7 +8,9 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup, ResultSet, Tag
 from pydantic_core import Url
 
-from .book import Chapter
+from mywbooks.download_manager import DownlaodManager
+
+from .book import BookConfig, Chapter, ChapterRef
 from .ebook_generator import ChapterPageContent, ChapterPageExtractor, ExtractOptions
 from .utils import _get_text
 from .web_book import WebBook, WebBookData
@@ -62,14 +64,6 @@ class FictionParseError(Exception):
         if url:
             msg += f" | url={url}"
         super().__init__(msg)
-
-
-# TODO: This should not be here but more general
-@dataclass(frozen=True)
-class ChapterRef:
-    id: str
-    url: str
-    title: str | None = None
 
 
 class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
@@ -192,38 +186,48 @@ class RoyalRoad_WebBook(WebBook):
         self._chapter_urls = chapter_urls
         self._chapter_extractor = RoyalRoadChapterPageExtractor()
 
-    def get_chapters(
-        self, *, include_images: bool = True, include_chapter_title: bool = True
-    ) -> Iterable[Chapter]:
-        for idx, ch_url in enumerate(self._chapter_urls):
-            ch_html = _get_text(ch_url)
-            bs = BeautifulSoup(ch_html, "lxml")
-            page = self._chapter_extractor.extract_chapter(
-                bs, options=ExtractOptions(url=ch_url, strict=True, fallback_title=None)
-            )
-            if page is None:
-                continue
-
-            # page.content is a Tag; preserve HTML
-            content_html = str(page.content)
-            # Images: for now, let Chapter strip <img> if include_images=False
-            images = {}
-            yield Chapter(
-                title=page.title or f"Chapter {idx+1}",
-                content=content_html,
-                images=images,
-                source_url=ch_url,
-            )
+        html = _get_text(
+            fiction_url
+        )  # or your DownloadManager if you’ve injected it here
+        meta, chapter_urls = _parse_fiction_page(fiction_url, html, strict=True)
+        super().__init__(meta)
+        self.fiction_url = fiction_url
+        self.refs = [
+            ChapterRef(
+                id=chapter_id_from_url(u) or "", url=u, title=None
+            )  # TODO: Needs to handle id_from_url failing
+            for u in chapter_urls
+        ]
+        self._extractor = RoyalRoadChapterPageExtractor()
 
     def list_chapter_refs(self) -> list[ChapterRef]:
-        """Return ToC-derived chapter references without downloading content."""
-        refs: list[ChapterRef] = []
-        for u in self._chapter_urls:  # these come from #chapters ToC
-            chap_id = chapter_id_from_url(u)
-            if not chap_id:
-                continue
-            refs.append(ChapterRef(id=chap_id, url=u, title=None))
-        return refs
+        return self.refs
+
+    def fetch_chapter(
+        self,
+        ref: ChapterRef,
+        *,
+        download_manager: DownlaodManager,
+        include_images: bool = True,
+        include_chapter_title: bool = True,
+    ) -> Chapter:
+        html = download_manager.get_and_cache_html(Url(ref.url))  # soup
+        page = self._extractor.extract_chapter(html)
+        content_html = str(page.content)
+
+        # Build image map from the HTML (by URL); rewriting to packaged paths happens in the generator
+        images = {}
+        for tag in html.select("img[src]"):
+            src = tag["src"].strip()
+            full = src if src.startswith("http") else urljoin(ref.url, src)
+            images[url_hash(full)] = Image.by_src_url(full)
+
+        return Chapter(
+            title=page.title or ref.title or "Untitled",
+            content=content_html,
+            images=images,
+            source_url=ref.url,
+        )
 
 
 # ----------------- helpers -----------------
@@ -234,7 +238,7 @@ def _parse_fiction_page(
     html: str,
     chapter_toc_strategies: int = 0,
     strict: bool = True,
-) -> tuple[WebBookData, list[str]]:
+) -> tuple[BookConfig, list[str]]:
     """
     Extract book metadata (title, author, cover, language) and all chapter URLs
     from a RoyalRoad fiction page.
