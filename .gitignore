@@ -2,6 +2,10 @@
 cache
 out
 
+# Env
+.env
+.env.local
+
 
 # Python-generated files
 __pycache__/
