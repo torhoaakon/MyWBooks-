@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from mywbooks.utils import utcnow
 
-from .db import SessionLocal
+from .db import get_db
 from .models import Book, Chapter, Provider
 from .royalroad import (
     RoyalRoad_WebBook,
@@ -25,7 +25,7 @@ def upsert_royalroad_book(wb: RoyalRoad_WebBook) -> int:
     if not uid:
         raise ValueError("Could not extract RoyalRoad fiction id from URL")
 
-    with SessionLocal() as db:
+    with get_db() as db:
         book = db.execute(
             select(Book).where(Book.provider_fiction_uid == uid)
         ).scalar_one_or_none()
@@ -57,7 +57,7 @@ def upsert_royalroad_book(wb: RoyalRoad_WebBook) -> int:
 def _upsert_chapter_index(wb: RoyalRoad_WebBook, book_id: int) -> None:
     """Insert/update Chapter rows with provider_chapter_id + URL only."""
     refs = wb.list_chapter_refs()
-    with SessionLocal() as db:
+    with get_db() as db:
         for idx, ref in enumerate(refs):
             existing = db.execute(
                 select(Chapter).where(
@@ -92,7 +92,7 @@ def fetch_missing_chapters_for_book(book_id: int, limit: int | None = None) -> i
     Returns number of chapters fetched.
     """
     count = 0
-    with SessionLocal() as db:
+    with get_db() as db:
         book = db.get(Book, book_id)
         if not book:
             return 0

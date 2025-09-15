@@ -1,39 +1,21 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, HttpUrl, field_validator, model_validator
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 
 from mywbooks import ingest, models
 from mywbooks.api.auth import CurrentUser
-from mywbooks.db import SessionLocal
-from mywbooks.ingest import upsert_royalroad_book, upsert_royalroad_book_from_url
+from mywbooks.db import get_db
 from mywbooks.library import add_book_to_user
-
-# from sqlalchemy.orm import Session
-
 
 router = APIRouter()
 
 # --- DB session dependency ----------------------------------------------------
-
-
-def get_db() -> Session:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def _ensure_aux_tables(db: Session) -> None:
-    # Create only our small tables if missing; "books" should already exist
-    _Base.metadata.create_all(
-        bind=db.get_bind(), tables=[User.__table__, UserBook.__table__]
-    )
 
 
 # --- Schemas ------------------------------------------------------------------
@@ -43,11 +25,11 @@ class AddRoyalRoadBody(BaseModel):
     url: Optional[HttpUrl] = None
     fiction_id: Optional[int] = None
 
-    @field_validator("fiction_id")
-    @classmethod
-    def _at_least_one(cls, v, info):
-        # just to make sure the body isn't entirely empty; actual check happens in handler
-        return v
+    @model_validator(mode="after")
+    def check_at_least_one(self):
+        if not self.url and not self.fiction_id:
+            raise ValueError("Either 'url' or 'fiction_id' must be provided")
+        return self
 
 
 class BookOut(BaseModel):
@@ -125,10 +107,10 @@ def add_royalroad_book(
     """
     Upsert a RoyalRoad book (by fiction URL or fiction_id) and subscribe the current user.
     """
-    if not body.url and not body.fiction_id:
-        raise HTTPException(
-            status_code=422, detail="Provide either 'url' or 'fiction_id'."
-        )
+    # if not body.url and not body.fiction_id:
+    #     raise HTTPException(
+    #         status_code=422, detail="Provide either 'url' or 'fiction_id'."
+    #     )
 
     # 1) Upsert book via your ingest helpers
     if body.url:

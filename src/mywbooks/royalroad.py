@@ -13,7 +13,7 @@ from mywbooks.download_manager import DownlaodManager
 from .book import BookConfig, Chapter, ChapterRef
 from .ebook_generator import ChapterPageContent, ChapterPageExtractor, ExtractOptions
 from .utils import _get_text
-from .web_book import WebBook, WebBookData
+from .web_book import WebBook
 
 PROVIDER_PREFIX = "royalroad"
 
@@ -279,7 +279,7 @@ def _parse_fiction_page(
         base_url, bs, strict=strict, strategies=chapter_toc_strategies
     )
 
-    meta = WebBookData(
+    meta = BookConfig(
         title=title,
         language=language,
         author=author,

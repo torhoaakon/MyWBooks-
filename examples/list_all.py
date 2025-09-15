@@ -1,9 +1,9 @@
-from mywbooks.db import SessionLocal, init_db
+from mywbooks.db import get_db, init_db
 from mywbooks.models import Book, Chapter, User
 
 init_db()
 
-with SessionLocal() as db:
+with get_db() as db:
     print("=== Users ===")
     for u in db.query(User).all():
         print(f"{u.id}: {u.email} (kindle={u.kindle_email})")

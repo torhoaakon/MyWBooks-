@@ -1,9 +1,12 @@
-import pytest
+from pathlib import Path
+from urllib.parse import urljoin
 
 import mywbooks.royalroad as rr
 from mywbooks.royalroad import RoyalRoad_WebBook
+from tests.fakes import FakeDownloadManager
 
 FICTION_URL = "https://www.royalroad.com/fiction/5555/my-rr-fiction"
+
 
 FICTION_HTML = """
 <html>
@@ -21,7 +24,7 @@ FICTION_HTML = """
 </html>
 """
 
-CHAPTER1_HTML = """
+CHAPTER1_HTML = b"""
 <html><body>
   <div id="chapter-content">
     <h1>Chapter One</h1>
@@ -30,7 +33,7 @@ CHAPTER1_HTML = """
 </body></html>
 """
 
-CHAPTER2_HTML = """
+CHAPTER2_HTML = b"""
 <html><body>
   <div id="chapter-content">
     <h1>Chapter Two</h1>
@@ -40,17 +43,13 @@ CHAPTER2_HTML = """
 """
 
 
-def test_webbook_yields_chapters(monkeypatch):
+def test_webbook_yields_chapters(monkeypatch, tmp_path: Path):
     calls = []
 
     def fake_get_text(url: str, *, timeout: float = 30.0) -> str:
         calls.append(url)
         if url == FICTION_URL:
             return FICTION_HTML
-        if url.endswith("/chapter/1"):
-            return CHAPTER1_HTML
-        if url.endswith("/chapter/2"):
-            return CHAPTER2_HTML
         raise AssertionError(f"Unexpected URL: {url}")
 
     # Monkeypatch the internal fetch function used by RoyalRoad_WebBook
@@ -59,8 +58,17 @@ def test_webbook_yields_chapters(monkeypatch):
     wb = RoyalRoad_WebBook(FICTION_URL)
 
     # Metadata
-    assert wb.data.title == "My RR Fiction"
-    assert wb.data.author == "Author Name"
+    assert wb.bdata.config.title == "My RR Fiction"
+    assert wb.bdata.config.author == "Author Name"
+
+    url_ch1 = urljoin(FICTION_URL, "/fiction/5555/my-rr-fiction/chapter/1")
+    url_ch2 = urljoin(FICTION_URL, "/fiction/5555/my-rr-fiction/chapter/2")
+
+    fdm = FakeDownloadManager(
+        tmp_path,
+        {url_ch1: CHAPTER1_HTML, url_ch2: CHAPTER2_HTML},
+    )
+    wb._iter_dm = fdm
 
     chapters = list(wb.get_chapters(include_images=False, include_chapter_title=True))
     assert len(chapters) == 2
@@ -72,5 +80,3 @@ def test_webbook_yields_chapters(monkeypatch):
 
     # ensure we fetched fiction + both chapters
     assert FICTION_URL in calls
-    assert any(u.endswith("/chapter/1") for u in calls)
-    assert any(u.endswith("/chapter/2") for u in calls)
