@@ -29,13 +29,28 @@ class Provider(StrEnum):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+
+    auth_provider: Mapped[str | None] = mapped_column(
+        String(40), nullable=True, index=True
+    )
+    auth_subject: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True, index=True
+    )
+
     kindle_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow())
 
     library: Mapped[list["BookUser"]] = relationship(
         back_populates="user", cascade="all, delete"
+    )
+
+    # Optionally, enforce uniqueness across provider+subject instead of just subject:
+    __table_args__ = (
+        UniqueConstraint(
+            "auth_provider", "auth_subject", name="uq_user_provider_subject"
+        ),
     )
 
 
@@ -44,7 +59,7 @@ class Book(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
     provider: Mapped[Provider] = mapped_column(Enum(Provider))
-    provider_fiction_uid: Mapped[str | None] = mapped_column(String(128), index=True)
+    provider_fiction_uid: Mapped[str] = mapped_column(String(128), index=True)
     source_url: Mapped[str] = mapped_column(String(1024))
 
     title: Mapped[str] = mapped_column(String(255))
