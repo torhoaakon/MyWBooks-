@@ -12,12 +12,54 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    inspect,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from mywbooks.utils import utcnow
 
-from .db import Base
+
+class ReprMixin:
+    def __repr__(self):
+        cls_name = self.__class__.__name__
+        mapper = inspect(self.__class__)
+
+        # Columns
+        col_parts = []
+        for column in getattr(mapper, "columns", []):
+            name = column.key
+            try:
+                value = getattr(self, name)
+            except Exception:
+                value = "<unloaded>"
+            col_parts.append(f"{name}={value!r}")
+
+        # Relationships (only give a summary, not dump the whole list)
+        rel_parts = []
+        for rel in getattr(mapper, "relationships", []):
+            name = rel.key
+            try:
+                value = getattr(self, name)
+            except Exception:
+                value = "<unloaded>"
+            if value is None:
+                rel_parts.append(f"{name}=None")
+            elif rel.uselist:
+                # show length instead of contents
+                rel_parts.append(f"{name}=[...{len(value)} items...]")
+            else:
+                # show just the related object's class+id
+                rel_parts.append(
+                    f"{name}={value.__class__.__name__}(id={getattr(value, 'id', '?')})"
+                )
+
+        return f"<{cls_name} {' '.join(col_parts + rel_parts)}>"
+
+    __str__ = __repr__
+
+
+class Base(DeclarativeBase, ReprMixin):
+    pass
 
 
 class Provider(StrEnum):
@@ -46,7 +88,6 @@ class User(Base):
         back_populates="user", cascade="all, delete"
     )
 
-    # Optionally, enforce uniqueness across provider+subject instead of just subject:
     __table_args__ = (
         UniqueConstraint(
             "auth_provider", "auth_subject", name="uq_user_provider_subject"
@@ -102,7 +143,6 @@ class Chapter(Base):
     book: Mapped[Book] = relationship(back_populates="chapters")
 
     __table_args__ = (
-        # unique per book so re-ingests don't duplicate
         UniqueConstraint(
             "book_id", "provider_chapter_id", name="uq_chapter_book_chapid"
         ),

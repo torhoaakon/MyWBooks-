@@ -8,11 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-import mywbooks.models  # IMPORTANT: import models so tables are registered
-
-# Import your app and models/db
 from mywbooks.api.app import app
-from mywbooks.db import Base  # declarative base in your db.py
+from mywbooks.models import Base
 
 # One shared in-memory SQLite for all sessions/connections
 engine = create_engine(

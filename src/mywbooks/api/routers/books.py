@@ -123,7 +123,7 @@ def add_royalroad_book(
 
     # 2) Map Supabase user → local User and subscribe
     local_user = _get_or_create_user_by_sub(db, user)
-    add_book_to_user(local_user.id, book_id)
+    add_book_to_user(db, local_user.id, book_id)
 
     # 3) Return the book
     book = db.get(models.Book, book_id)
@@ -151,12 +151,16 @@ def list_my_books(user: CurrentUser, db: Session = Depends(get_db)):
     return [BookOut.from_model(b) for b in rows]
 
 
-@router.delete("/{book_id}", status_code=204)
+@router.delete("/{book_id}/unsubscribe", status_code=204)
 def unsubscribe_book(book_id: int, user: CurrentUser, db: Session = Depends(get_db)):
     """
     Remove the current user's subscription to a book (keeps the book for others).
     """
+    print(user)
+
     local_user = _get_or_create_user_by_sub(db, user)
+
+    print(local_user)
 
     # Flip in_library = False if the row exists; otherwise nothing to do.
     link = db.execute(
@@ -165,9 +169,23 @@ def unsubscribe_book(book_id: int, user: CurrentUser, db: Session = Depends(get_
             models.BookUser.book_id == book_id,
         )
     ).scalar_one_or_none()
+
+    print(link)
+
     if link:
         link.in_library = False
+        print("Link is false")
         db.commit()
+
+    print(
+        db.execute(
+            select(models.BookUser).where(
+                models.BookUser.user_id == local_user.id,
+                models.BookUser.book_id == book_id,
+            )
+        ).scalar_one_or_none()
+    )
+
     return
 
 
