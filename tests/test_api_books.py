@@ -55,6 +55,16 @@ def test_add_royalroad_book_by_url(client, db_session: Session, monkeypatch):
     assert rel is not None
 
 
+def test_add_royalroad_requires_one_of_url_or_fiction_id(client):
+    # Missing both -> pydantic model validation should fail with 422
+    resp = client.post("/api/books/royalroad", json={})
+    assert resp.status_code == 422
+    # Optional: check error message content
+    body = resp.json()
+    # The exact structure can vary by Pydantic/FastAPI, so keep it loose:
+    assert "Either 'url' or 'fiction_id' must be provided" in str(body)
+
+
 def test_list_my_books(client, db_session: Session):
     # Ensure a user + subscription exists (reuse from previous test or create here)
     user = db_session.execute(

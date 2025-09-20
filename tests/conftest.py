@@ -49,7 +49,7 @@ def client():
     app.dependency_overrides[db.get_db] = _test_get_db
 
     # 2) override CurrentUser dependency:
-    from mywbooks.api.auth import CurrentUser, verify_jwt
+    from mywbooks.api.auth import verify_jwt
 
     app.dependency_overrides[verify_jwt] = lambda: _fake_current_user()
     return TestClient(app)

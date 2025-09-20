@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, HttpUrl, field_validator, model_validator
-from sqlalchemy import insert, select
+from pydantic import BaseModel, HttpUrl, model_validator
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mywbooks import ingest, models
@@ -14,8 +13,6 @@ from mywbooks.db import get_db
 from mywbooks.library import add_book_to_user
 
 router = APIRouter()
-
-# --- DB session dependency ----------------------------------------------------
 
 
 # --- Schemas ------------------------------------------------------------------
@@ -107,10 +104,6 @@ def add_royalroad_book(
     """
     Upsert a RoyalRoad book (by fiction URL or fiction_id) and subscribe the current user.
     """
-    # if not body.url and not body.fiction_id:
-    #     raise HTTPException(
-    #         status_code=422, detail="Provide either 'url' or 'fiction_id'."
-    #     )
 
     # 1) Upsert book via your ingest helpers
     if body.url:
@@ -170,21 +163,9 @@ def unsubscribe_book(book_id: int, user: CurrentUser, db: Session = Depends(get_
         )
     ).scalar_one_or_none()
 
-    print(link)
-
     if link:
         link.in_library = False
-        print("Link is false")
         db.commit()
-
-    print(
-        db.execute(
-            select(models.BookUser).where(
-                models.BookUser.user_id == local_user.id,
-                models.BookUser.book_id == book_id,
-            )
-        ).scalar_one_or_none()
-    )
 
     return
 

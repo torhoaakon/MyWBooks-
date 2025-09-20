@@ -1,9 +1,11 @@
-from mywbooks.db import get_db, init_db
+from mywbooks.db import SessionLocal, get_db, init_db
 from mywbooks.models import Book, Chapter, User
 
 init_db()
 
-with get_db() as db:
+db = SessionLocal()
+
+try:
     print("=== Users ===")
     for u in db.query(User).all():
         print(f"{u.id}: {u.email} (kindle={u.kindle_email})")
@@ -17,3 +19,5 @@ with get_db() as db:
             .count()
         )
         print(f"{b.id}: {b.title} [{b.provider}] chapters={ch_count} fetched={fetched}")
+finally:
+    db.close()
