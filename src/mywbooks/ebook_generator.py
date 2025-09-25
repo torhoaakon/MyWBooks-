@@ -52,7 +52,7 @@ class EbookGeneratorConfig(NamedTuple):
     include_images: bool = True
     include_chapter_titles: bool = False
     image_resize_max: tuple[int, int] = (1024, 1024)
-    epub_css_filepath: str = "style/kindle.css"
+    epub_css_filepath: str = "assets/kindle.css"
 
     # TODO: This should probably not include the extension
     epub_cover_image_path: str = "cover.png"

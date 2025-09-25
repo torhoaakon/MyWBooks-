@@ -2,6 +2,16 @@
 from pathlib import Path
 
 import dramatiq
+from pydantic_core import Url
+
+from mywbooks import models
+from mywbooks.book import DEFAULT_COVER_URL, BookConfig
+from mywbooks.book_ops import (
+    ensure_chapter_content,
+    ensure_toc,
+    export_book_to_epub_from_db,
+)
+from mywbooks.ebook_generator import EbookGeneratorConfig
 
 from . import queue
 from .db import SessionLocal
@@ -22,11 +32,11 @@ def build_webbook_for(book: Book) -> WebBook:
             raise RuntimeError("Unsupported model provider")
 
 
-@dramatiq.actor(max_retries=3)  # automatic retries on exception
+@dramatiq.actor(max_retries=3)
 def download_book_task(task_id: int):
     db = SessionLocal()
     try:
-        task = db.get(Task, task_id)
+        task = db.get(models.Task, task_id)
         if not task:
             return  # nothing to do
 
@@ -39,32 +49,37 @@ def download_book_task(task_id: int):
         if not book:
             raise RuntimeError(f"Book {task.book_id} not found")
 
-        webbook = build_webbook_for(book)
+        # webbook = build_webbook_for(book)
+
+        payload: dict = task.payload or {}
 
         dm = DownlaodManager(Path("./cache"))
-        css_path = Path("assets/kindle.css")
         out_dir = Path("var/epubs")
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"book-{book.id}.epub"
 
-        # cfg = EbookGeneratorConfig(
-        #     book_config=webbook.bdata.config,
-        #     css_filepath=css_path,
-        #     include_images=True,
-        #     include_chapter_titles=True,
-        #     image_resize_max=(1024, 1024),
-        # )
+        ensure_toc(db, book, dm)
+        ensure_chapter_content(db, book)
 
-        # Drive generation through WebBook’s to_epub
-        webbook.to_epub(
-            download_manager=dm,
-            css_filepath=css_path,
-            output_path=out_path,
-            include_images=True,
-            include_chapter_titles=True,
-            image_resize_max=(1024, 1024),
-            book_id=f"book-{book.id}",
+        cover_url: Url = Url(book.cover_url) if book.cover_url else DEFAULT_COVER_URL
+        bcfg = BookConfig(
+            title=payload.get("book-title", book.title),
+            author=payload.get("book-author", book.author or ""),
+            language=payload.get("book-language", book.language),
+            cover_image=payload.get("book-cover", cover_url),
         )
+
+        keys = [
+            "include-images",
+            "include-chapter-titles",
+            "image-resize-max",
+            "css-filepath",
+        ]
+        cfg = EbookGeneratorConfig(
+            book_config=bcfg,
+            **{k: payload[k.replace("-", "_")] for k in keys if k in payload},
+        )
+        export_book_to_epub_from_db(db, book, dm=dm, cfg=cfg, out_path=out_path)
 
         # Mark success (you could store a file path in payload)
         task.status = TaskStatus.SUCCEEDED
