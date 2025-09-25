@@ -6,18 +6,14 @@ from pydantic_core import Url
 
 from mywbooks import models
 from mywbooks.book import DEFAULT_COVER_URL, BookConfig
-from mywbooks.book_ops import (
-    ensure_chapter_content,
-    ensure_toc,
-    export_book_to_epub_from_db,
-)
 from mywbooks.ebook_generator import EbookGeneratorConfig
 
-from . import queue
+from . import queue  # This import is IMPORTANT
 from .db import SessionLocal
 from .download_manager import DownlaodManager
 from .models import Book, Provider, Task, TaskStatus
 from .royalroad import RoyalRoad_WebBook
+from .services.book_ops import export_book_to_epub_from_db, upsert_fiction_toc
 from .utils import utcnow
 from .web_book import WebBook
 
@@ -58,8 +54,10 @@ def download_book_task(task_id: int):
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"book-{book.id}.epub"
 
-        ensure_toc(db, book, dm)
-        ensure_chapter_content(db, book)
+        # NOTE: Should probably not be doing this her here
+        upsert_fiction_toc(
+            db, book, dm
+        )  ## Look for new chapters and changes to metadata
 
         cover_url: Url = Url(book.cover_url) if book.cover_url else DEFAULT_COVER_URL
         bcfg = BookConfig(

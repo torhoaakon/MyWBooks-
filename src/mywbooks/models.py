@@ -64,7 +64,7 @@ class Base(DeclarativeBase, ReprMixin):
 
 
 class Provider(StrEnum):
-    ROYALROAD = "royalroad"
+    ROYALROAD = providers.royalroad.PROVIDER_KEY
     PATREON = "patreon"
     WUXIAWORLD = "wuxiaworld"
 
