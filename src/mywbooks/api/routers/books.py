@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 from mywbooks import ingest, models
 from mywbooks.api.auth import CurrentUser
 from mywbooks.db import get_db
+from mywbooks.download_manager import DownlaodManager, get_dm
 from mywbooks.library import add_book_to_user
+from mywbooks.tasks import download_book_task
 
 router = APIRouter()
 
@@ -100,6 +102,7 @@ def add_royalroad_book(
     body: AddRoyalRoadBody,
     user: CurrentUser,
     db: Session = Depends(get_db),
+    dm: DownlaodManager = Depends(get_dm),
 ):
     """
     Upsert a RoyalRoad book (by fiction URL or fiction_id) and subscribe the current user.
@@ -107,12 +110,12 @@ def add_royalroad_book(
 
     # 1) Upsert book via your ingest helpers
     if body.url:
-        book_id = ingest.upsert_royalroad_book_from_url(str(body.url))
+        book_id = ingest.upsert_royalroad_book_from_url(db, body.url._url, dm)
     else:
         # If your ingest exposes a dedicated fiction-id helper, use it.
         # Otherwise, synthesize a URL (works with your current ingest).
         url = f"https://www.royalroad.com/fiction/{body.fiction_id}"
-        book_id = ingest.upsert_royalroad_book_from_url(url)
+        book_id = ingest.upsert_royalroad_book_from_url(db, url, dm)
 
     # 2) Map Supabase user → local User and subscribe
     local_user = _get_or_create_user_by_sub(db, user)
@@ -170,14 +173,17 @@ def unsubscribe_book(book_id: int, user: CurrentUser, db: Session = Depends(get_
     return
 
 
+# TODO: Here there should be some more generate config
 @router.post("/{book_id}/download")
 def download_book_now(book_id: int, user: CurrentUser, db: Session = Depends(get_db)):
     """
-    Temporary: queue/trigger a download/export. This will be replaced by the real pipeline.
+    Queue a download/export job and return a task id the client can poll.
     """
-    local_user = _get_or_create_user_by_sub(db, user)
+    local_user = _get_or_create_user_by_sub(
+        db, user
+    )  # existing helper :contentReference[oaicite:2]{index=2}
 
-    # guard: user must have it in their library
+    # Must be subscribed
     rel = db.execute(
         select(models.BookUser).where(
             models.BookUser.user_id == local_user.id,
@@ -188,5 +194,19 @@ def download_book_now(book_id: int, user: CurrentUser, db: Session = Depends(get
     if not rel:
         raise HTTPException(status_code=403, detail="Not subscribed to this book.")
 
-    # TODO: enqueue real job; for now a stub:
-    return {"ok": True, "book_id": book_id, "status": "queued"}
+    # Create a Task row
+    task = models.Task(
+        type=models.TaskType.DOWNLOAD_BOOK,
+        status=models.TaskStatus.QUEUED,
+        user_id=local_user.id,
+        book_id=book_id,
+        payload=None,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    # Enqueue the job (fire-and-forget)
+    download_book_task.send(task.id)
+
+    return {"ok": True, "task_id": task.id, "status": task.status}

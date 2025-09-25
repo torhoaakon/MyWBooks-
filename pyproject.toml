@@ -18,6 +18,7 @@ dependencies = [
     "pyjwt>=2.9",
     "sqlalchemy>=2.0.43",
     "python-dotenv>=1.0.1",
+    "dramatiq[redis,watch]>=1.18.0",
 ]
 
 [build-system]
@@ -26,6 +27,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "honcho>=2.0.0",
     "mywbooks",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",

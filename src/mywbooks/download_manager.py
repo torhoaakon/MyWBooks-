@@ -1,8 +1,7 @@
-import hashlib
 import io
 from collections.abc import Buffer
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup
@@ -67,7 +66,7 @@ class DownlaodManager:
         fileext=None,
         cache_filename: Optional[str] = None,
         ignore_cache=False,
-    ):
+    ) -> bytes:
         if cache_filename is None:
             cache_filename = self.get_cache_filename(url, fileext)
 
@@ -117,3 +116,10 @@ class DownlaodManager:
 
         im.save(self.base_cache_dir / cache_filename)
         return self.read_valid_cache_file(cache_filename)
+
+
+def get_dm() -> Iterator[DownlaodManager]:
+    try:
+        yield DownlaodManager(Path("./cache"))
+    finally:
+        pass

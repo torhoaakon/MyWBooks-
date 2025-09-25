@@ -20,8 +20,6 @@ def init_db() -> None:
 
 # Only intended to be used by FastAPI
 def get_db() -> Iterator[Session]:
-    print("get_db")
-
     db = SessionLocal()
     try:
         yield db

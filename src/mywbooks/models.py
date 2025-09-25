@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Enum,
@@ -170,3 +171,37 @@ class BookUser(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "book_id", name="uq_bookuser_user_book"),
     )
+
+
+## Tasks
+
+
+class TaskType(StrEnum):
+    DOWNLOAD_BOOK = "DOWNLOAD_BOOK"
+
+
+class TaskStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    type: Mapped[str] = mapped_column(String(64), index=True)  # TaskType
+    status: Mapped[str] = mapped_column(String(32), index=True)  # TaskStatus
+
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    book_id: Mapped[int | None] = mapped_column(ForeignKey("books.id"), nullable=True)
+
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None]
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow())
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow())
+    finished_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow())

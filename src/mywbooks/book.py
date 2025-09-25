@@ -3,11 +3,17 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple, Optional
+from urllib.parse import urljoin
 
+from bs4 import BeautifulSoup
 from pydantic_core import Url
 
+from mywbooks import models
 from mywbooks.download_manager import DownlaodManager
 from mywbooks.utils import url_hash
+
+DEFAULT_COVER_URL = Url("https://www.royalroad.com/favicon.ico")
+
 
 ImageID = str
 
@@ -83,6 +89,29 @@ class Chapter(NamedTuple):
 
         return "".join(content)
 
+    @classmethod
+    def from_model(cls, model: models.Chapter) -> "Chapter":
+        if not model.is_fetched:
+            raise RuntimeError("Trying to turn unfetched chapter model into Chapter")
+
+        html = model.content_html or ""
+        bs = BeautifulSoup(html, features="lxml")
+
+        images = {}
+        for tag in bs.select("img[src]"):
+            src = str(tag["src"]).strip()
+            full: Url = Url(
+                src if src.startswith("http") else urljoin(model.source_url, src)
+            )
+            images[url_hash(full)] = Image.by_src_url(full)
+
+        return Chapter(
+            title=model.title,
+            content=html,
+            images=images,
+            source_url=model.source_url,
+        )
+
 
 @dataclass
 class BookConfig:
@@ -90,6 +119,17 @@ class BookConfig:
     language: str
     author: str
     cover_image: Url | Path  # Maybe this should be image type
+
+    @staticmethod
+    def from_model(book: models.Book) -> "BookConfig":
+        cover_url: Url = Url(book.cover_url) if book.cover_url else DEFAULT_COVER_URL
+
+        return BookConfig(
+            title=book.title,
+            author=book.author or "",
+            language=book.language,
+            cover_image=cover_url,  # adapt if you store Url vs str
+        )
 
 
 @dataclass

@@ -1,5 +1,4 @@
 import tomllib
-from functools import cache
 from pathlib import Path
 
 from pydantic import BaseModel

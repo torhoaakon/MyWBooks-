@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from typing import Iterable, Optional, override
+from typing import Any, Iterable, Optional, override
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup, ResultSet, Tag
+from bs4 import BeautifulSoup, Tag
 from pydantic_core import Url
 
+from mywbooks import models
 from mywbooks.download_manager import DownlaodManager
 
-from .book import BookConfig, Chapter, ChapterRef
+from .book import BookConfig, Chapter, ChapterRef, Image
 from .ebook_generator import ChapterPageContent, ChapterPageExtractor, ExtractOptions
-from .utils import _get_text
+from .utils import url_hash
 from .web_book import WebBook
 
 PROVIDER_PREFIX = "royalroad"
@@ -178,38 +178,74 @@ class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
 class RoyalRoad_WebBook(WebBook):
     """Concrete WebBook for a RoyalRoad fiction page."""
 
-    def __init__(self, fiction_url: str):
-        self.fiction_url = fiction_url
-        html = _get_text(self.fiction_url)
-        meta, chapter_urls = _parse_fiction_page(self.fiction_url, html, strict=True)
-        super().__init__(meta)
-        self._chapter_urls = chapter_urls
-        self._chapter_extractor = RoyalRoadChapterPageExtractor()
+    def __init__(self, meta: BookConfig, chap_refs: list[ChapterRef] = [], **kw: Any):
+        super().__init__(meta, chap_refs, **kw)
+        self._extractor = RoyalRoadChapterPageExtractor()
 
-        html = _get_text(
-            fiction_url
-        )  # or your DownloadManager if you’ve injected it here
-        meta, chapter_urls = _parse_fiction_page(fiction_url, html, strict=True)
-        super().__init__(meta)
-        self.fiction_url = fiction_url
-        self.refs = [
+        self.fiction_url = kw.pop("fiction_url", None)
+
+    @classmethod
+    def from_fiction_url(
+        cls, fiction_url: Url, dm: Optional[DownlaodManager]
+    ) -> "RoyalRoad_WebBook":
+        dm = dm or cls._require_dm_for_iter()
+
+        html = dm.get_and_cache_data(fiction_url).decode("utf-8")
+        meta, chapter_urls = _parse_fiction_page(str(fiction_url), html, strict=True)
+
+        chap_refs = [
             ChapterRef(
                 id=chapter_id_from_url(u) or "", url=u, title=None
             )  # TODO: Needs to handle id_from_url failing
             for u in chapter_urls
         ]
-        self._extractor = RoyalRoadChapterPageExtractor()
+
+        return cls(meta, chap_refs, fiction_url=fiction_url)
+
+    @override
+    @classmethod
+    def from_model(cls, book: models.Book) -> RoyalRoad_WebBook:
+        meta = BookConfig.from_model(book)
+
+        chap_refs = []
+        if book.chapters:
+            # keep DB order
+            for ch in sorted(book.chapters, key=lambda c: c.index):
+                chap_refs.append(
+                    ChapterRef(
+                        id=ch.provider_chapter_id, url=ch.source_url, title=ch.title
+                    )
+                )
+                if ch.is_fetched:
+                    Chapter.from_model(ch)
+
+        return cls(
+            meta, chap_refs, fiction_url=Url(book.source_url), book_model_id=book.id
+        )
 
     def list_chapter_refs(self) -> list[ChapterRef]:
+        if self.refs:
+            return self.refs
+
+        # Otherwise, lazy-fetch ToC from the fiction page,
+        # but DO NOT stash metadata that contradicts DB — just populate refs.
+        dm = self._require_dm_for_iter()
+        html = dm.get_and_cache_data(self.fiction_url).decode("utf-8")
+        _meta, chapter_urls = _parse_fiction_page(
+            str(self.fiction_url), html, strict=True
+        )  # meta ignored
+        self.refs = [
+            ChapterRef(id=chapter_id_from_url(u) or "", url=u, title=None)
+            for u in chapter_urls
+        ]
         return self.refs
 
-    def fetch_chapter(
+    @override
+    def _fetch_chapter(
         self,
         ref: ChapterRef,
         *,
         download_manager: DownlaodManager,
-        include_images: bool = True,
-        include_chapter_title: bool = True,
     ) -> Chapter:
         html = download_manager.get_and_cache_html(Url(ref.url))  # soup
         page = self._extractor.extract_chapter(html)

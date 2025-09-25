@@ -22,3 +22,4 @@ wheels/
 .session.vim
 mywbooks.db
 TODO
+dump.rdb
