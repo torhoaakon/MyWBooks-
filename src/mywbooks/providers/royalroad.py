@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import re
-from typing import Optional
-from urllib.parse import urlparse
+from typing import Iterable, Optional, override
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from pydantic_core import Url
@@ -56,9 +56,6 @@ class RoyalRoadProvider(Provider):
     def __init__(self) -> None:
         self._extractor = RoyalRoadChapterPageExtractor()
 
-    def provider_key(self) -> str:
-        return PROVIDER_KEY
-
     def fiction_uid_from_url(self, url: str) -> str | None:
         return rr_fiction_uid_from_url(url)
 
@@ -79,7 +76,7 @@ class RoyalRoadProvider(Provider):
         return self._extractor.extract_chapter(soup, options=options)
 
     def canonical_chapter_url(self, chapter_id_prefixed: str) -> str:
-        return canonical_rr_chapter_url(chapter_id_prefixed)
+        return _canonical_rr_chapter_url(chapter_id_prefixed)
 
 
 # ----------------- Extractor -----------------
@@ -214,12 +211,27 @@ def chapter_id_from_url(url: str) -> str | None:
     return f"{PROVIDER_KEY}:{m.group(1)}"
 
 
+def chapter_id_from_url(url: str) -> str | None:
+    """
+    Extract a RoyalRoad chapter id and return a *namespaced* id, e.g. "royalroad:1269041".
+    """
+    m = CHAPTER_ID_RE.search(url)
+    if not m:
+        return None
+    return f"{PROVIDER_KEY}:{m.group(1)}"
+
+
 ## ---- Private ----
 
 
 def _canonical_rr_chapter_url(chapter_id_prefixed: str) -> str:
     # "royalroad:1269041" -> "https://www.royalroad.com/fiction/chapter/1269041"
-    _, raw = chapter_id_prefixed.split(":", 1)
+    prefix, raw = chapter_id_prefixed.split(":", 1)
+    if prefix is not PROVIDER_KEY:
+        raise RuntimeError(
+            "Trying to construct canonical_chapter_url using the wring Provider"
+        )
+
     return f"https://www.royalroad.com/fiction/chapter/{raw}"
 
 
