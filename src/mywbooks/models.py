@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import (
@@ -17,6 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from mywbooks.providers import Provider
 from mywbooks.utils import utcnow
 
 
@@ -61,12 +62,6 @@ class ReprMixin:
 
 class Base(DeclarativeBase, ReprMixin):
     pass
-
-
-class Provider(StrEnum):
-    ROYALROAD = providers.royalroad.PROVIDER_KEY
-    PATREON = "patreon"
-    WUXIAWORLD = "wuxiaworld"
 
 
 class User(Base):

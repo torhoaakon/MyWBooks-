@@ -4,7 +4,7 @@ import re
 from typing import Iterable, Optional, override
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from pydantic_core import Url
 
 from mywbooks.book import BookConfig, ChapterRef
@@ -17,7 +17,11 @@ from mywbooks.ebook_generator import (
 
 from .base import Provider
 
-PROVIDER_KEY = "royalroad"
+# ================= Header =================
+
+PROVIDER_SHORT_NAME = "RoyalRoad"
+
+# ==========================================
 
 
 CHAPTER_ID_RE = re.compile(r"/chapter/(\d+)", re.IGNORECASE)
@@ -57,15 +61,32 @@ class RoyalRoadProvider(Provider):
         self._extractor = RoyalRoadChapterPageExtractor()
 
     def fiction_uid_from_url(self, url: str) -> str | None:
-        return rr_fiction_uid_from_url(url)
+        m = FICTION_ID_RE.search(urlparse(url).path)
+        if not m:
+            return None
+        return f"{self.provider_key()}:{m.group(1)}"
 
     def discover_fiction(
         self, dm: DownlaodManager, fiction_url: Url
     ) -> tuple[BookConfig, list[ChapterRef]]:
         html = dm.get_and_cache_data(fiction_url).decode("utf-8")
         meta, chapter_urls = _parse_fiction_page(str(fiction_url), html, strict=True)
+
+        def chapter_uid_from_url(url):
+            lid = _chapter_id_from_url(url)
+            if lid is None:
+                raise RuntimeError(
+                    "RoyalRoadProvider failed to identify chapter id from url"
+                )
+
+            return f"{self.provider_key()}:{lid}"
+
         refs = [
-            ChapterRef(id=chapter_id_from_url(u) or "", url=u, title=None)
+            ChapterRef(
+                id=chapter_uid_from_url(u),
+                url=u,
+                title=None,
+            )
             for u in chapter_urls
         ]
         return meta, refs
@@ -194,31 +215,14 @@ class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
 # ----------------- helpers -----------------
 
 
-def rr_fiction_uid_from_url(url: str) -> str | None:
-    m = FICTION_ID_RE.search(urlparse(url).path)
-    if not m:
-        return None
-    return f"{PROVIDER_KEY}:{m.group(1)}"
-
-
-def chapter_id_from_url(url: str) -> str | None:
+def _chapter_id_from_url(url: str) -> str | None:
     """
     Extract a RoyalRoad chapter id and return a *namespaced* id, e.g. "royalroad:1269041".
     """
     m = CHAPTER_ID_RE.search(url)
     if not m:
         return None
-    return f"{PROVIDER_KEY}:{m.group(1)}"
-
-
-def chapter_id_from_url(url: str) -> str | None:
-    """
-    Extract a RoyalRoad chapter id and return a *namespaced* id, e.g. "royalroad:1269041".
-    """
-    m = CHAPTER_ID_RE.search(url)
-    if not m:
-        return None
-    return f"{PROVIDER_KEY}:{m.group(1)}"
+    return m.group(1)
 
 
 ## ---- Private ----
@@ -227,7 +231,7 @@ def chapter_id_from_url(url: str) -> str | None:
 def _canonical_rr_chapter_url(chapter_id_prefixed: str) -> str:
     # "royalroad:1269041" -> "https://www.royalroad.com/fiction/chapter/1269041"
     prefix, raw = chapter_id_prefixed.split(":", 1)
-    if prefix is not PROVIDER_KEY:
+    if prefix is not PROVIDER_PREFIX:
         raise RuntimeError(
             "Trying to construct canonical_chapter_url using the wring Provider"
         )
@@ -347,7 +351,7 @@ def _collect_rr_chapter_links(base_url: str, scope: BeautifulSoup | Tag) -> list
         if not href:
             continue
         full = urljoin(base_url, href)
-        chap_id = chapter_id_from_url(full)
+        chap_id = _chapter_id_from_url(full)
         if chap_id and chap_id not in seen:
             seen[chap_id] = full
 
