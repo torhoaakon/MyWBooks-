@@ -17,8 +17,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from mywbooks.providers import Provider
-from mywbooks.utils import utcnow
+from .providers import Provider
+from .utils import utcnow
 
 
 class ReprMixin:

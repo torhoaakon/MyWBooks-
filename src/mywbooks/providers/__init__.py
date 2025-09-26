@@ -22,7 +22,7 @@ _PROVIDER_MODULE: dict[str, str] = {
 
 def get_provider_by_key(key: str):
     try:
-        return _PROVIDERS[key]["provider_class"]
+        return _get_providers_registery()[key]["provider_class"]
     except KeyError:
         raise ValueError(f"No provider registered for {key}")
 
@@ -65,4 +65,11 @@ def _keypair_for(provider_key: str):
     )
 
 
-_PROVIDERS = dict([_keypair_for(p) for p in _PROVIDER_MODULE.keys()])
+def _get_providers_registery():
+    if not hasattr(_get_providers_registery, "initialized_value"):
+        setattr(
+            get_provider_by_key,
+            "PROVIDES",
+            dict([_keypair_for(p) for p in _PROVIDER_MODULE.keys()]),
+        )
+    return getattr(_get_providers_registery, "PROVIDES")

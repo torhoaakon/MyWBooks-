@@ -8,9 +8,9 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from pydantic_core import Url
 
-from mywbooks import models
-from mywbooks.download_manager import DownlaodManager
-from mywbooks.utils import url_hash
+from . import models
+from .download_manager import DownlaodManager
+from .utils import url_hash
 
 DEFAULT_COVER_URL = Url("https://www.royalroad.com/favicon.ico")
 
@@ -89,28 +89,28 @@ class Chapter(NamedTuple):
 
         return "".join(content)
 
-    @classmethod
-    def from_model(cls, model: models.Chapter) -> "Chapter":
-        if not model.is_fetched:
-            raise RuntimeError("Trying to turn unfetched chapter model into Chapter")
-
-        html = model.content_html or ""
-        bs = BeautifulSoup(html, features="lxml")
-
-        images = {}
-        for tag in bs.select("img[src]"):
-            src = str(tag["src"]).strip()
-            full: Url = Url(
-                src if src.startswith("http") else urljoin(model.source_url, src)
-            )
-            images[url_hash(full)] = Image.by_src_url(full)
-
-        return Chapter(
-            title=model.title,
-            content=html,
-            images=images,
-            source_url=model.source_url,
-        )
+    # @classmethod
+    # def from_model(cls, model: models.Chapter) -> "Chapter":
+    #     if not model.is_fetched:
+    #         raise RuntimeError("Trying to turn unfetched chapter model into Chapter")
+    #
+    #     html = model.content_html or ""
+    #     bs = BeautifulSoup(html, features="lxml")
+    #
+    #     images = {}
+    #     for tag in bs.select("img[src]"):
+    #         src = str(tag["src"]).strip()
+    #         full: Url = Url(
+    #             src if src.startswith("http") else urljoin(model.source_url, src)
+    #         )
+    #         images[url_hash(full)] = Image.by_src_url(full)
+    #
+    #     return Chapter(
+    #         title=model.title,
+    #         content=html,
+    #         images=images,
+    #         source_url=model.source_url,
+    #     )
 
 
 @dataclass
