@@ -15,7 +15,7 @@ from mywbooks.ebook_generator import (
     ExtractOptions,
 )
 
-from .base import Provider
+from .base import Fiction, Provider
 
 # ================= Header =================
 
@@ -66,9 +66,18 @@ class RoyalRoadProvider(Provider):
             return None
         return f"{self.provider_key()}:{m.group(1)}"
 
-    def discover_fiction(
-        self, dm: DownlaodManager, fiction_url: Url
-    ) -> tuple[BookConfig, list[ChapterRef]]:
+    def fiction_url_from_uid(self, uid: str) -> str:
+        [_, _id] = uid.split(":", 1)
+        return f"https://www.royalroad.com/fiction/{_id}"
+
+    def discover_fiction(self, dm: DownlaodManager, fiction_url: Url) -> Fiction:
+
+        uid = self.fiction_uid_from_url(str(fiction_url))
+        if not uid:
+            raise ValueError("Could not extract RoyalRoad fiction id from URL")
+
+        fiction_url = Url(self.fiction_url_from_uid(uid))
+
         html = dm.get_and_cache_data(fiction_url).decode("utf-8")
         meta, chapter_urls = _parse_fiction_page(str(fiction_url), html, strict=True)
 
@@ -89,7 +98,12 @@ class RoyalRoadProvider(Provider):
             )
             for u in chapter_urls
         ]
-        return meta, refs
+        return Fiction(
+            uid=uid,
+            source_url=fiction_url,
+            meta=meta,
+            chapter_refs=refs,
+        )
 
     def extract_chapter(
         self, soup: BeautifulSoup, *, options: Optional[ExtractOptions] = None

@@ -26,7 +26,8 @@ class _ProviderInfo(typing.NamedTuple):
     provider_key: str
     module_name: str
     short_name: str
-    provider_class: Provider
+    provider_class: type[Provider]
+    instance: Provider
 
 
 def get_provider_by_key(key: str) -> Provider:
@@ -44,7 +45,7 @@ def get_provider_by_key(key: str) -> Provider:
     # Check for provider in registry
     pinfo = provider_register.get(key)
     if pinfo:
-        return pinfo.provider_class
+        return pinfo.instance
 
     # If not loaded, look up module name
     mname = _PROVIDER_MODULES.get(key)
@@ -66,24 +67,28 @@ def get_provider_by_key(key: str) -> Provider:
         "PROVIDER_SHORT_NAME", "Short Variable name used to refer to this provider"
     )
 
-    _class: Provider = _get_assert_var(
-        "f{short_name}Provider", "The Provider class (.i.e. extending Provider)"
+    _class: type[Provider] = _get_assert_var(
+        f"{short_name}Provider", "The Provider class (.i.e. extending Provider)"
     )
-    assert isinstance(
-        _class, ProviderKey
-    ), "Provider class for {provider} is not an instance of provider.base.Provider"
+
+    assert issubclass(
+        _class, Provider
+    ), f"Provider class for '{short_name}' is not an instance of provider.base.Provider"
 
     # Set _provider_key attribute of Provider class
     setattr(_class, "_provider_key", key)
+
+    instance: Provider = _class()
 
     provider_register[key] = _ProviderInfo(
         provider_key=key,
         module_name=mname,
         short_name=short_name,
         provider_class=_class,
+        instance=instance,
     )
 
-    return _class
+    return instance
 
 
 __all__ = ["Provider", "get_provider_by_key"]

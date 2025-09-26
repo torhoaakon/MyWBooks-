@@ -4,6 +4,8 @@ from pydantic_core import Url
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from mywbooks.providers.base import Fiction
+
 from .. import models
 from ..book import BookConfig, ChapterRef
 from ..download_manager import DownlaodManager
@@ -16,18 +18,18 @@ def upsert_royalroad_book_from_url(
 ) -> int:
     prov: Provider = get_provider_by_key(ProviderKey.ROYALROAD)
 
-    meta: BookConfig
-    refs: list[ChapterRef]
-    meta, refs = prov.discover_fiction(dm, Url(str(fiction_url)))
+    fic: Fiction = prov.discover_fiction(dm, Url(str(fiction_url)))
 
-    uid = prov.fiction_uid_from_url(str(fiction_url))
-    if not uid:
-        raise ValueError("Could not extract RoyalRoad fiction id from URL")
     book_id = _upsert_book_meta(
-        db, prov, meta, uid, source_url=str(fiction_url), do_inserts=True
+        db,
+        prov,
+        fic.meta,
+        fic.uid,
+        source_url=str(fic.source_url),
+        do_inserts=True,
     )
 
-    _upsert_chapter_index_from_refs(db, prov, refs, book_id)
+    _upsert_chapter_index_from_refs(db, prov, fic.chapter_refs, book_id)
     return book_id
 
 
@@ -101,7 +103,7 @@ def _upsert_chapter_index_from_refs(
                     title=ref.title or f"Chapter {idx+1}",
                     content_html=None,
                     provider_chapter_id=ref.id,
-                    source_url=ref.url,
+                    source_url=str(ref.url),
                     is_fetched=False,
                 )
             )

@@ -82,9 +82,9 @@ def _get_or_create_user_by_sub(db: Session, claims: UserClaims) -> models.User:
     provider = "supabase"
 
     u = db.execute(
-        select(models.User)
-        .where(models.User.auth_provider == provider)
-        .where(models.User.auth_subject == sub)
+        select(models.User).where(
+            models.User.auth_provider == provider, models.User.auth_subject == sub
+        )
     ).scalar_one_or_none()
 
     if u:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from bs4 import BeautifulSoup
 from pydantic_core import Url
@@ -19,6 +19,14 @@ class InvalidProviderError(Exception):
         if provider_key:
             msg += f" | provider_key={provider_key}"
         super().__init__(msg)
+
+
+class Fiction(NamedTuple):
+    uid: str
+    source_url: Url
+
+    meta: BookConfig
+    chapter_refs: list[ChapterRef]
 
 
 class Provider(ABC):
@@ -45,9 +53,7 @@ class Provider(ABC):
 
     # Discover metadata + ToC from a fiction page
     @abstractmethod
-    def discover_fiction(
-        self, dm: DownlaodManager, fiction_url: Url
-    ) -> tuple[BookConfig, list[ChapterRef]]: ...
+    def discover_fiction(self, dm: DownlaodManager, fiction_url: Url) -> Fiction: ...
 
     # Extract a chapter’s title+content from its page
     @abstractmethod
@@ -56,5 +62,5 @@ class Provider(ABC):
     ) -> ChapterPageContent | None: ...
 
     ### Maybe
-    @abstractmethod
-    def canonical_chapter_url(self, chapter_id_prefixed: str) -> str: ...
+    # @abstractmethod
+    # def canonical_chapter_url(self, chapter_id_prefixed: str) -> str: ...
