@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, AsyncGenerator, Iterable
+
 import dotenv
 
 dotenv.load_dotenv()
@@ -18,7 +20,7 @@ from .routers import books
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     init_db()
     yield
@@ -40,12 +42,12 @@ app.include_router(books.router, prefix="/api/books", tags=["books"])
 
 
 @app.get("/health")
-def health():
+def health() -> dict[str, Any]:
     return {"ok": True}
 
 
 @app.get("/me")
-def me(user: CurrentUser):
+def me(user: CurrentUser) -> dict[str, Any]:
     # Typical claims you’ll see: sub, email, role, aud, exp, iat
     return {
         "sub": user.get("sub"),
@@ -56,7 +58,7 @@ def me(user: CurrentUser):
 
 
 @app.get("/tasks/{task_id}")
-def get_task(task_id: int, db: Session = Depends(get_db)):
+def get_task(task_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
     task = db.get(models.Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")

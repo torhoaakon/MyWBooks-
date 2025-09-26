@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable, Optional, override
+from typing import Iterable, Optional, Tuple, override
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup, Tag
@@ -72,7 +72,7 @@ class RoyalRoadProvider(Provider):
         html = dm.get_and_cache_data(fiction_url).decode("utf-8")
         meta, chapter_urls = _parse_fiction_page(str(fiction_url), html, strict=True)
 
-        def chapter_uid_from_url(url):
+        def chapter_uid_from_url(url: Url) -> str:
             lid = _chapter_id_from_url(url)
             if lid is None:
                 raise RuntimeError(
@@ -83,8 +83,8 @@ class RoyalRoadProvider(Provider):
 
         refs = [
             ChapterRef(
-                id=chapter_uid_from_url(u),
-                url=u,
+                id=chapter_uid_from_url(Url(u)),
+                url=Url(u),
                 title=None,
             )
             for u in chapter_urls
@@ -96,8 +96,8 @@ class RoyalRoadProvider(Provider):
     ) -> ChapterPageContent | None:
         return self._extractor.extract_chapter(soup, options=options)
 
-    def canonical_chapter_url(self, chapter_id_prefixed: str) -> str:
-        return _canonical_rr_chapter_url(chapter_id_prefixed)
+    # def canonical_chapter_url(self, chapter_id_prefixed: str) -> str:
+    #     return _canonical_rr_chapter_url(chapter_id_prefixed)
 
 
 # ----------------- Extractor -----------------
@@ -133,7 +133,9 @@ class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
     # fiction_title_selector: str = "div.fic-header h1"
     # fiction_content_selector: str = "div.chapter-inner"
 
-    def _first_match(self, soup, selectors: Iterable[str]):
+    def _first_match(
+        self, soup: BeautifulSoup | Tag, selectors: Iterable[str]
+    ) -> Tuple[Tag | None, str | None]:
         for sel in selectors:
             node = soup.select_one(sel)
             if node is not None:
@@ -215,28 +217,17 @@ class RoyalRoadChapterPageExtractor(ChapterPageExtractor):
 # ----------------- helpers -----------------
 
 
-def _chapter_id_from_url(url: str) -> str | None:
+def _chapter_id_from_url(url: Url) -> str | None:
     """
     Extract a RoyalRoad chapter id and return a *namespaced* id, e.g. "royalroad:1269041".
     """
-    m = CHAPTER_ID_RE.search(url)
+    m = CHAPTER_ID_RE.search(str(url))
     if not m:
         return None
     return m.group(1)
 
 
 ## ---- Private ----
-
-
-def _canonical_rr_chapter_url(chapter_id_prefixed: str) -> str:
-    # "royalroad:1269041" -> "https://www.royalroad.com/fiction/chapter/1269041"
-    prefix, raw = chapter_id_prefixed.split(":", 1)
-    if prefix is not PROVIDER_PREFIX:
-        raise RuntimeError(
-            "Trying to construct canonical_chapter_url using the wring Provider"
-        )
-
-    return f"https://www.royalroad.com/fiction/chapter/{raw}"
 
 
 def _parse_fiction_page(
@@ -351,7 +342,7 @@ def _collect_rr_chapter_links(base_url: str, scope: BeautifulSoup | Tag) -> list
         if not href:
             continue
         full = urljoin(base_url, href)
-        chap_id = _chapter_id_from_url(full)
+        chap_id = _chapter_id_from_url(Url(full))
         if chap_id and chap_id not in seen:
             seen[chap_id] = full
 

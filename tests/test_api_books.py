@@ -13,7 +13,7 @@ def test_add_royalroad_book_by_url(client, db_session: Session, monkeypatch):
     # Pre-create a Book row in the SAME test DB
     b = models.Book(
         provider=(
-            models.Provider.ROYALROAD if hasattr(models, "Provider") else "royalroad"
+            models.ProviderKey.ROYALROAD if hasattr(models, "Provider") else "royalroad"
         ),
         provider_fiction_uid="royalroad:21220",
         source_url="https://www.royalroad.com/fiction/21220",
@@ -82,7 +82,7 @@ def test_list_my_books(client, db_session: Session):
 
     b = models.Book(
         provider=(
-            models.Provider.ROYALROAD if hasattr(models, "Provider") else "royalroad"
+            models.ProviderKey.ROYALROAD if hasattr(models, "Provider") else "royalroad"
         ),
         provider_fiction_uid="royalroad:999",
         source_url="https://rr/fiction/999",
@@ -144,7 +144,7 @@ def test_download_requires_subscription(client, db_session: Session):
     # Create a book with no subscription
     b = models.Book(
         provider=(
-            models.Provider.ROYALROAD if hasattr(models, "Provider") else "royalroad"
+            models.ProviderKey.ROYALROAD if hasattr(models, "Provider") else "royalroad"
         ),
         provider_fiction_uid="royalroad:unsub",
         source_url="https://rr/fiction/unsub",

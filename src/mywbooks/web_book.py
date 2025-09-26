@@ -13,6 +13,7 @@ from mywbooks.ebook_generator import EbookGenerator, EbookGeneratorConfig
 from .book import BookConfig, BookData, Chapter, ChapterRef
 
 
+@DeprecationWarning
 class WebBook(ABC):
     """Represents an online book (fiction page + chapter refs; chapters fetched on demand)."""
 

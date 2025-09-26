@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Optional
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 from ebooklib import epub
@@ -116,7 +117,7 @@ class EbookGenerator:
         *,
         chapter_page_exactor: Optional[ChapterPageExtractor] = None,
         src_url: str | None = None,
-    ):
+    ) -> None:
         # NOTE: This ChapterPageContent type is a bit strange
 
         bs = BeautifulSoup(page_content, features="lxml")
@@ -138,7 +139,9 @@ class EbookGenerator:
             )
         )
 
-    def manage_chapter_img_tags(self, bs: Tag):
+    def manage_chapter_img_tags(
+        self, bs: Tag, source_url: Url | None = None
+    ) -> dict[str, Image]:
         images: dict[str, Image] = {}
 
         for img in bs.select("img"):
@@ -156,7 +159,10 @@ class EbookGenerator:
             if not im:
                 im = self.images_new.get(src_url)
                 if not im:
-                    im = Image.by_src_url(src_url)
+                    # TODO: full_url = urljoin(source_url, src_url)
+                    full_url = src_url
+
+                    im = Image.by_src_url(Url(src_url))
                     self.images_new[src_url] = im
 
                 images[src_url] = im
@@ -166,7 +172,7 @@ class EbookGenerator:
 
     # Export the generated Ebook as an epub
 
-    def export_as_epub(self, local_epub_filepath: Path):
+    def export_as_epub(self, local_epub_filepath: Path) -> None:
         ebook = epub.EpubBook()
         # mandatory metadata
         ebook.set_identifier(self.book_id)

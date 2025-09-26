@@ -4,6 +4,8 @@ import importlib
 import typing
 from enum import StrEnum
 
+from .base import Provider
+
 ## === Warning!! ===
 # When adding new providers. Both
 #   - A unique identifier most be added to the Provider class, and
@@ -11,7 +13,7 @@ from enum import StrEnum
 
 
 # By writing this explicitly, it is earlier for the autocomplete
-class Provider(StrEnum):
+class ProviderKey(StrEnum):
     ROYALROAD = "royalroad"
     # PATREON = "patreon"
     # WUXIAWORLD = "wuxiaworld"
@@ -19,7 +21,7 @@ class Provider(StrEnum):
 
 # fmt: off
 _PROVIDER_MODULES: dict[str, str] = {
-        Provider.ROYALROAD: "royalroad",
+        ProviderKey.ROYALROAD: "royalroad",
         # Provider.PATREON = "patreon"
         # Provider.WUXIAWORLD = "wuxiaworld"
 }
@@ -30,10 +32,10 @@ class _ProviderInfo(typing.NamedTuple):
     provider_key: str
     module_name: str
     short_name: str
-    provider_class: object
+    provider_class: Provider
 
 
-def get_provider_by_key(key: str):
+def get_provider_by_key(key: str) -> Provider:
     # Store provider_register as function attribute
     if not hasattr(get_provider_by_key, "initialized_value"):
         setattr(
@@ -60,21 +62,21 @@ def get_provider_by_key(key: str):
 
     module = importlib.import_module(f".{mname}", package=__name__)
 
-    def _get_assert_var(var_name, desc):
+    def _get_assert_var(var_name: str, desc: str) -> typing.Any:
         if not hasattr(module, var_name):
             raise RuntimeError(f"Module {key} is missing {var_name} [{desc}]")
         return getattr(module, var_name)
 
     # key = _get_assert_var("PROVIDER_KEY", "Identification Key")
-    short_name = _get_assert_var(
+    short_name: str = _get_assert_var(
         "PROVIDER_SHORT_NAME", "Short Variable name used to refer to this provider"
     )
 
-    _class = _get_assert_var(
+    _class: Provider = _get_assert_var(
         "f{short_name}Provider", "The Provider class (.i.e. extending Provider)"
     )
     assert isinstance(
-        _class, Provider
+        _class, ProviderKey
     ), "Provider class for {provider} is not an instance of provider.base.Provider"
 
     # Set _provider_key attribute of Provider class
@@ -88,3 +90,6 @@ def get_provider_by_key(key: str):
     )
 
     return _class
+
+
+__all__ = ["Provider", "get_provider_by_key"]

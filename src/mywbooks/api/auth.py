@@ -1,7 +1,7 @@
 # src/mywbooks/api/auth.py
 import os
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Any, TypedDict
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -24,12 +24,25 @@ if not (JWKS_URL or JWT_SECRET):
 bearer = HTTPBearer(auto_error=True)
 
 
+class UserClaims(TypedDict, total=False):
+    sub: str  # subject (user id)
+    email: str
+    role: str
+    aud: str
+    # Unused:
+    #  iss: str  # issuer
+    #  iat: int  # issued at (epoch seconds)
+    #  exp: int  # expiration (epoch seconds)
+    #  nbf: int  # not before (epoch seconds)
+    #  jti: str  # JWT ID (unique token id)
+
+
 @lru_cache
 def _jwks_client() -> PyJWKClient | None:
     return PyJWKClient(JWKS_URL) if JWKS_URL else None
 
 
-def _decode_jwt(token: str) -> dict:
+def _decode_jwt(token: str) -> UserClaims:
     """Decode a Supabase JWT, auto-detecting algorithm from header."""
     header = jwt.get_unverified_header(token)
     alg = header.get("alg")
@@ -40,7 +53,8 @@ def _decode_jwt(token: str) -> dict:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="HS256 token but SUPABASE_JWT_SECRET not set",
             )
-        return jwt.decode(
+
+        res = jwt.decode(
             token,
             JWT_SECRET,
             algorithms=["HS256"],
@@ -48,6 +62,8 @@ def _decode_jwt(token: str) -> dict:
             issuer=ISSUER,
             options={"require": ["exp", "iat"], "verify_signature": True},
         )
+        assert isinstance(res, dict), "Assuming return type is dict"
+        return UserClaims(**res)  # type: ignore [typeddict-item]
 
     if alg in {"RS256", "RS512", "ES256", "ES384"}:
         if not JWKS_URL:
@@ -55,8 +71,8 @@ def _decode_jwt(token: str) -> dict:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"{alg} token but SUPABASE_JWKS_URL not set",
             )
-        signing_key = _jwks_client().get_signing_key_from_jwt(token).key  # type: ignore[arg-type]
-        return jwt.decode(
+        signing_key = _jwks_client().get_signing_key_from_jwt(token).key  # type: ignore[union-attr]
+        res = jwt.decode(
             token,
             signing_key,
             algorithms=[alg],
@@ -64,13 +80,15 @@ def _decode_jwt(token: str) -> dict:
             issuer=ISSUER,
             options={"require": ["exp", "iat"], "verify_signature": True},
         )
+        assert isinstance(res, dict), "Assuming return type is dict"
+        return UserClaims(**res)  # type: ignore [typeddict-item]
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Unsupported alg: {alg}"
     )
 
 
-def verify_jwt(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
+def verify_jwt(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> UserClaims:
     if cred.scheme.lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Bearer token"
@@ -90,4 +108,4 @@ def verify_jwt(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
         )
 
 
-CurrentUser = Annotated[dict, Depends(verify_jwt)]
+CurrentUser = Annotated[UserClaims, Depends(verify_jwt)]

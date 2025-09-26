@@ -20,18 +20,18 @@ ImageID = str
 
 @dataclass(init=True)
 class Image:
-    url: str
+    url: Url
     url_hash: ImageID
     # image_hash ? TODO: It would be cool to hash the image itself
     image_data: Optional[bytes] = None
 
     @staticmethod
-    def by_src_url(src_url):
+    def by_src_url(src_url: Url) -> "Image":
         return Image(url=src_url, url_hash=url_hash(src_url))
 
     def get_image_data(
-        self, dm: DownlaodManager, max_width, max_height
-    ):  #  -> Result[bytes]:
+        self, dm: DownlaodManager, max_width: int = 1024, max_height: int = 1024
+    ) -> bytes | None:
         if self.image_data is not None:
             return self.image_data
 
@@ -64,7 +64,7 @@ class ChapterRef:
     """Lightweight reference to a chapter that may not be downloaded yet."""
 
     id: str  # provider chapter id, e.g. "royalroad:21220:ch-123"
-    url: str  # absolute chapter URL
+    url: Url  # absolute chapter URL
     title: Optional[str] = None
 
 
@@ -89,28 +89,28 @@ class Chapter(NamedTuple):
 
         return "".join(content)
 
-    # @classmethod
-    # def from_model(cls, model: models.Chapter) -> "Chapter":
-    #     if not model.is_fetched:
-    #         raise RuntimeError("Trying to turn unfetched chapter model into Chapter")
-    #
-    #     html = model.content_html or ""
-    #     bs = BeautifulSoup(html, features="lxml")
-    #
-    #     images = {}
-    #     for tag in bs.select("img[src]"):
-    #         src = str(tag["src"]).strip()
-    #         full: Url = Url(
-    #             src if src.startswith("http") else urljoin(model.source_url, src)
-    #         )
-    #         images[url_hash(full)] = Image.by_src_url(full)
-    #
-    #     return Chapter(
-    #         title=model.title,
-    #         content=html,
-    #         images=images,
-    #         source_url=model.source_url,
-    #     )
+    @classmethod
+    def from_model(cls, model: models.Chapter) -> "Chapter":
+        if not model.is_fetched:
+            raise RuntimeError("Trying to turn unfetched chapter model into Chapter")
+
+        html = model.content_html or ""
+        bs = BeautifulSoup(html, features="lxml")
+
+        images = {}
+        for tag in bs.select("img[src]"):
+            src = str(tag["src"]).strip()
+            full: Url = Url(
+                src if src.startswith("http") else urljoin(model.source_url, src)
+            )
+            images[url_hash(full)] = Image.by_src_url(full)
+
+        return Chapter(
+            title=model.title,
+            content=html,
+            images=images,
+            source_url=model.source_url,
+        )
 
 
 @dataclass

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -17,12 +18,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from .providers import Provider
+from .providers import ProviderKey
 from .utils import utcnow
 
 
 class ReprMixin:
-    def __repr__(self):
+    def __repr__(self) -> str:
         cls_name = self.__class__.__name__
         mapper = inspect(self.__class__)
 
@@ -95,7 +96,7 @@ class Book(Base):
     __tablename__ = "books"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    provider: Mapped[Provider] = mapped_column(Enum(Provider))
+    provider: Mapped[ProviderKey] = mapped_column(Enum(ProviderKey))
     provider_fiction_uid: Mapped[str] = mapped_column(String(128), index=True)
     source_url: Mapped[str] = mapped_column(String(1024))
 
@@ -186,13 +187,13 @@ class Task(Base):
     __tablename__ = "tasks"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    type: Mapped[str] = mapped_column(String(64), index=True)  # TaskType
-    status: Mapped[str] = mapped_column(String(32), index=True)  # TaskStatus
+    type: Mapped[TaskType] = mapped_column(String(64), index=True)
+    status: Mapped[TaskStatus] = mapped_column(String(32), index=True)
 
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     book_id: Mapped[int | None] = mapped_column(ForeignKey("books.id"), nullable=True)
 
-    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None]

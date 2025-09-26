@@ -35,3 +35,17 @@ dev = [
 
 [tool.uv.sources]
 mywbooks = { workspace = true }
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+ignore_missing_imports = true
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["mywbooks.patreon"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["mywbooks.web_book"]
+ignore_errors = true

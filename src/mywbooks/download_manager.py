@@ -34,21 +34,22 @@ class DownlaodManager:
         cache_filepath = self.base_cache_dir / cache_filename
         return cache_filepath.exists()
 
-    def read_valid_cache_file(self, cache_filename: str):
+    def read_valid_cache_file(self, cache_filename: str) -> bytes:
         with open(self.base_cache_dir / cache_filename, "rb") as f:
             return f.read()
 
-    def write_to_cache_file(self, content: Buffer, cache_filename: str):
+    def write_to_cache_file(self, content: Buffer, cache_filename: str) -> int:
         with open(self.base_cache_dir / cache_filename, "wb") as f:
             return f.write(content)
 
     def get_data(
         self,
-        url,
-        fileext=None,
+        url: Url,
+        *,
+        fileext: Optional[str] = None,
         cache_filename: Optional[str] = None,
-        ignore_cache=False,
-    ):
+        ignore_cache: bool = False,
+    ) -> bytes:
         if not ignore_cache:
             if cache_filename is None:
                 cache_filename = self.get_cache_filename(url, fileext)
@@ -56,43 +57,51 @@ class DownlaodManager:
                 return self.read_valid_cache_file(cache_filename)
 
         print(f"Downloading '{url}'")
-        req = Request(url, headers=self.hdrs)
+        req = Request(str(url), headers=self.hdrs)
         with urlopen(req) as response:
-            return response.read()
+            return bytes(response.read())
 
     def get_and_cache_data(
         self,
-        url,
-        fileext=None,
+        url: Url,
+        *,
+        fileext: Optional[str] = None,
         cache_filename: Optional[str] = None,
-        ignore_cache=False,
+        ignore_cache: bool = False,
     ) -> bytes:
         if cache_filename is None:
             cache_filename = self.get_cache_filename(url, fileext)
 
         if ignore_cache:
-            content = self.get_data(url, fileext, ignore_cache=True)
+            content = self.get_data(url, fileext=fileext, ignore_cache=True)
         else:
             if self.is_valid_cache(cache_filename):
                 return self.read_valid_cache_file(cache_filename)
-            content = self.get_data(url, fileext, ignore_cache=True)
+            content = self.get_data(url, fileext=fileext, ignore_cache=True)
 
         self.write_to_cache_file(content, cache_filename)
         return content
 
-    def get_html(self, url, ignore_cache=False) -> BeautifulSoup:
+    def get_html(self, url: Url, *, ignore_cache: bool = False) -> BeautifulSoup:
         content = self.get_data(url, fileext=".html", ignore_cache=ignore_cache)
         return BeautifulSoup(content, features="lxml")
 
-    def get_and_cache_html(self, url: Url, ignore_cache=False):
+    def get_and_cache_html(
+        self, url: Url, *, ignore_cache: bool = False
+    ) -> BeautifulSoup:
         content = self.get_and_cache_data(
             url, fileext=".html", ignore_cache=ignore_cache
         )
         return BeautifulSoup(content, features="lxml")
 
     def get_and_cache_image_data(
-        self, url, ignore_cache=False, max_width=8096, max_height=8096
-    ):
+        self,
+        url: Url,
+        *,
+        ignore_cache: bool = False,
+        max_width: int = 8096,
+        max_height: int = 8096,
+    ) -> bytes:
         cache_filename = "%s_%u_%u.jpg" % (
             self.get_cache_filename(url, fileext=""),
             max_width,
@@ -106,14 +115,8 @@ class DownlaodManager:
 
         content_io = io.BytesIO(content)
 
-        im = Image.open(content_io, "r")
+        im = Image.open(content_io, "r").convert("RGB")
         im.thumbnail((max_width, max_height))
-
-        # Check if the image has an alpha channel
-        if im.mode in ("RGBA", "LA"):
-            print("Image has an alpha channel. Converting to RGB...")
-            im = im.convert("RGB")
-
         im.save(self.base_cache_dir / cache_filename)
         return self.read_valid_cache_file(cache_filename)
 

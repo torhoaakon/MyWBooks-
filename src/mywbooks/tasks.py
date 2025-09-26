@@ -1,5 +1,6 @@
 # Example factory that returns the right WebBook subclass from a DB Book row
 from pathlib import Path
+from typing import Any
 
 import dramatiq
 from pydantic_core import Url
@@ -11,25 +12,13 @@ from mywbooks.ebook_generator import EbookGeneratorConfig
 from . import queue  # This import is IMPORTANT
 from .db import SessionLocal
 from .download_manager import DownlaodManager
-from .models import Book, Provider, Task, TaskStatus
-from .royalroad import RoyalRoad_WebBook
+from .models import Book, Task, TaskStatus
 from .services.book_ops import export_book_to_epub_from_db, upsert_fiction_toc
 from .utils import utcnow
-from .web_book import WebBook
-
-
-def build_webbook_for(book: Book) -> WebBook:
-    match book.provider:
-        case Provider.ROYALROAD:
-            return RoyalRoad_WebBook.from_model(book)
-        case Provider.PATREON:
-            raise RuntimeError("Unsupported model provider")
-        case Provider.WUXIAWORLD:
-            raise RuntimeError("Unsupported model provider")
 
 
 @dramatiq.actor(max_retries=3)
-def download_book_task(task_id: int):
+def download_book_task(task_id: int) -> None:
     db = SessionLocal()
     try:
         task = db.get(models.Task, task_id)
@@ -45,9 +34,7 @@ def download_book_task(task_id: int):
         if not book:
             raise RuntimeError(f"Book {task.book_id} not found")
 
-        # webbook = build_webbook_for(book)
-
-        payload: dict = task.payload or {}
+        payload: dict[str, Any] = task.payload or {}
 
         dm = DownlaodManager(Path("./cache"))
         out_dir = Path("var/epubs")

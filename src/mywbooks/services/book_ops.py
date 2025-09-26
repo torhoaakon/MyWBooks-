@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from bs4 import BeautifulSoup
 from pydantic_core import Url
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,6 @@ from mywbooks.providers import get_provider_by_key
 from mywbooks.utils import utcnow
 
 from .ingest import _upsert_book_meta  # uses list_chapter_refs()
-from .ingest import fetch_missing_chapters_for_book  # fills content_html/is_fetched
 from .ingest import _upsert_chapter_index_from_refs
 
 
@@ -91,7 +90,7 @@ def export_book_to_epub_from_db(
     # exp_options: ExportOptions,
     *,
     dm: DownlaodManager,
-    **kw,
+    **kw: dict[str, Any],
     # css_path: Path,
     # out_path: Path,
     # include_images: bool = True,

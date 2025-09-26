@@ -6,10 +6,19 @@ from typing import Optional
 from bs4 import BeautifulSoup
 from pydantic_core import Url
 
-from mywbooks import models
 from mywbooks.book import BookConfig, ChapterRef
 from mywbooks.download_manager import DownlaodManager
 from mywbooks.ebook_generator import ChapterPageContent, ExtractOptions
+
+
+class InvalidProviderError(Exception):
+    def __init__(self, reason: str, *, provider_key: str | None = None):
+        self.reason = reason
+        self.provider_key = provider_key
+        msg = f"Invalid provider class: {reason}. Ensure that the class was obtained using the .providers.get_provider_by_key function"
+        if provider_key:
+            msg += f" | provider_key={provider_key}"
+        super().__init__(msg)
 
 
 class Provider(ABC):
@@ -17,10 +26,18 @@ class Provider(ABC):
 
     @classmethod
     def provider_key(cls) -> str:
-        assert hasattr(
-            cls, "_provider_key"
-        ), "Invalid provider class, has not '_provider_key' attribute. Ensure that the class was obtained using the .providers.get_provider_by_key function"
-        return getattr(cls, "_provider_key")
+        if not hasattr(cls, "_provider_key"):
+            raise InvalidProviderError(reason="Missing '_provider_key' attribute.")
+
+        key = getattr(cls, "_provider_key")
+
+        if not isinstance(key, str):
+            raise InvalidProviderError(
+                reason="'_provider_key' attribute is not of type `str`.",
+                provider_key=key,
+            )
+
+        return key
 
     # Identify a fiction (used for upsert / dedupe)
     @abstractmethod

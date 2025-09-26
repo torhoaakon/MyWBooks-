@@ -5,7 +5,7 @@ import httpx
 from pydantic_core import Url
 
 
-def utcnow():
+def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 

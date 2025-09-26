@@ -7,11 +7,12 @@ from pydantic import BaseModel, HttpUrl, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from mywbooks import ingest, models
-from mywbooks.api.auth import CurrentUser
+from mywbooks import models
+from mywbooks.api.auth import CurrentUser, UserClaims
 from mywbooks.db import get_db
 from mywbooks.download_manager import DownlaodManager, get_dm
 from mywbooks.library import add_book_to_user
+from mywbooks.services import ingest
 from mywbooks.tasks import download_book_task
 
 router = APIRouter()
@@ -25,7 +26,7 @@ class AddRoyalRoadBody(BaseModel):
     fiction_id: Optional[int] = None
 
     @model_validator(mode="after")
-    def check_at_least_one(self):
+    def check_at_least_one(self) -> "AddRoyalRoadBody":
         if not self.url and not self.fiction_id:
             raise ValueError("Either 'url' or 'fiction_id' must be provided")
         return self
@@ -57,10 +58,22 @@ class BookOut(BaseModel):
         )
 
 
+# ==== Response Messages ====
+
+
+class ResponseMsg(BaseModel):
+    ok: bool
+
+
+class DownloadBookNowResponse(ResponseMsg):
+    task_id: int
+    task_status: models.TaskStatus
+
+
 # --- Helpers ------------------------------------------------------------------
 
 
-def _get_or_create_user_by_sub(db: Session, claims: dict) -> models.User:
+def _get_or_create_user_by_sub(db: Session, claims: UserClaims) -> models.User:
     sub = claims.get("sub")
     if not sub:
         raise HTTPException(status_code=401, detail="JWT missing 'sub' claim")
@@ -103,7 +116,7 @@ def add_royalroad_book(
     user: CurrentUser,
     db: Session = Depends(get_db),
     dm: DownlaodManager = Depends(get_dm),
-):
+) -> BookOut:
     """
     Upsert a RoyalRoad book (by fiction URL or fiction_id) and subscribe the current user.
     """
@@ -129,7 +142,7 @@ def add_royalroad_book(
 
 
 @router.get("", response_model=list[BookOut])
-def list_my_books(user: CurrentUser, db: Session = Depends(get_db)):
+def list_my_books(user: CurrentUser, db: Session = Depends(get_db)) -> list[BookOut]:
     """
     List books the current user has in their library (subscriptions).
     """
@@ -148,15 +161,13 @@ def list_my_books(user: CurrentUser, db: Session = Depends(get_db)):
 
 
 @router.delete("/{book_id}/unsubscribe", status_code=204)
-def unsubscribe_book(book_id: int, user: CurrentUser, db: Session = Depends(get_db)):
+def unsubscribe_book(
+    book_id: int, user: CurrentUser, db: Session = Depends(get_db)
+) -> ResponseMsg:
     """
     Remove the current user's subscription to a book (keeps the book for others).
     """
-    print(user)
-
     local_user = _get_or_create_user_by_sub(db, user)
-
-    print(local_user)
 
     # Flip in_library = False if the row exists; otherwise nothing to do.
     link = db.execute(
@@ -170,12 +181,14 @@ def unsubscribe_book(book_id: int, user: CurrentUser, db: Session = Depends(get_
         link.in_library = False
         db.commit()
 
-    return
+    return ResponseMsg(ok=True)
 
 
 # TODO: Here there should be some more generate config
 @router.post("/{book_id}/download")
-def download_book_now(book_id: int, user: CurrentUser, db: Session = Depends(get_db)):
+def download_book_now(
+    book_id: int, user: CurrentUser, db: Session = Depends(get_db)
+) -> DownloadBookNowResponse:
     """
     Queue a download/export job and return a task id the client can poll.
     """
@@ -209,4 +222,6 @@ def download_book_now(book_id: int, user: CurrentUser, db: Session = Depends(get
     # Enqueue the job (fire-and-forget)
     download_book_task.send(task.id)
 
-    return {"ok": True, "task_id": task.id, "status": task.status}
+    return DownloadBookNowResponse(
+        ok=True, task_id=task.id, task_status=models.TaskStatus(task.status)
+    )
