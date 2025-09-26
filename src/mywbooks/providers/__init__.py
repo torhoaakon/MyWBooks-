@@ -2,21 +2,15 @@ from __future__ import annotations
 
 import importlib
 import typing
-from enum import StrEnum
 
+from ..models import ProviderKey
 from .base import Provider
 
 ## === Warning!! ===
 # When adding new providers. Both
-#   - A unique identifier most be added to the Provider class, and
+#   - A unique identifier most be added to the ProviderKey class in
+#           `models.py`, and
 #   - The module name most be added to the _PROVIDER_MODULES dict
-
-
-# By writing this explicitly, it is earlier for the autocomplete
-class ProviderKey(StrEnum):
-    ROYALROAD = "royalroad"
-    # PATREON = "patreon"
-    # WUXIAWORLD = "wuxiaworld"
 
 
 # fmt: off

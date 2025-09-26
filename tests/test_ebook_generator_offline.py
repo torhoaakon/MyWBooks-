@@ -3,12 +3,12 @@ from __future__ import annotations
 from io import BytesIO
 from pathlib import Path
 
+from mywbooks.book import BookConfig, Chapter
+from mywbooks.ebook_generator import EbookGenerator, EbookGeneratorConfig
+from mywbooks.providers.royalroad import RoyalRoadChapterPageExtractor
 from PIL import Image
 from pydantic_core import Url
 
-from mywbooks.book import BookConfig, Chapter
-from mywbooks.ebook_generator import EbookGenerator, EbookGeneratorConfig
-from mywbooks.royalroad import RoyalRoadChapterPageExtractor
 from tests.fakes import FakeDownloadManager
 
 

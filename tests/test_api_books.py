@@ -1,11 +1,15 @@
 # tests/test_api_books.py
-# tests/test_api_books.py
 from __future__ import annotations
 
+import json
+
+from fastapi import Response
+from pydantic import Json
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mywbooks import models
+from mywbooks.api.routers.books import ResponseMsg
 from mywbooks.library import add_book_to_user
 
 
@@ -28,11 +32,12 @@ def test_add_royalroad_book_by_url(client, db_session: Session, monkeypatch):
     created_id = b.id
 
     # Monkeypatch ingest to just return the known id
-    from mywbooks import ingest
+    from mywbooks.services import ingest
 
-    monkeypatch.setattr(
-        ingest, "upsert_royalroad_book_from_url", lambda url: created_id
-    )
+    def _fake_func(db, url, dm):
+        return created_id
+
+    monkeypatch.setattr(ingest, "upsert_royalroad_book_from_url", _fake_func)
 
     # Call the API
     resp = client.post("/api/books/royalroad", json={"url": b.source_url})
@@ -133,7 +138,10 @@ def test_unsubscribe_book(client, db_session: Session):
     assert rel is not None
 
     resp = client.delete(f"/api/books/{book.id}/unsubscribe")
-    assert resp.status_code == 204
+    assert resp.status_code == 200
+
+    msg = ResponseMsg.model_validate_json(resp.text)
+    assert msg.ok
 
     db_session.refresh(rel)
 

@@ -1,7 +1,6 @@
 import pytest
 from bs4 import BeautifulSoup
-
-from mywbooks.royalroad import RoyalRoadChapterPageExtractor
+from mywbooks.providers.royalroad import RoyalRoadChapterPageExtractor
 
 CHAPTER_HTML = """
 <html>
@@ -30,7 +29,10 @@ def test_chapter_extractor_finds_title_and_content():
 
 def test_rr_extractor_strict_error_includes_url():
     from mywbooks.ebook_generator import ExtractOptions
-    from mywbooks.royalroad import ChapterParseError, RoyalRoadChapterPageExtractor
+    from mywbooks.providers.royalroad import (
+        ChapterParseError,
+        RoyalRoadChapterPageExtractor,
+    )
 
     ex = RoyalRoadChapterPageExtractor()
     soup = BeautifulSoup("<html><body>No chapter</body></html>", "lxml")

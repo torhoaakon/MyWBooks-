@@ -1,7 +1,7 @@
 import pytest
 
 # Perhaps export a public wrapper.
-from mywbooks.royalroad import FictionParseError, _parse_fiction_page
+from mywbooks.providers.royalroad import FictionParseError, _parse_fiction_page
 
 FICTION_HTML = """
 <html>

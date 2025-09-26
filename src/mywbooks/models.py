@@ -18,8 +18,18 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from .providers import ProviderKey
 from .utils import utcnow
+
+## ====== Provider Keys ========
+
+
+class ProviderKey(StrEnum):
+    ROYALROAD = "royalroad"
+    # PATREON = "patreon"
+    # WUXIAWORLD = "wuxiaworld"
+
+
+## ============================
 
 
 class ReprMixin:

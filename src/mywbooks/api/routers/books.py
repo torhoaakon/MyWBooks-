@@ -160,7 +160,7 @@ def list_my_books(user: CurrentUser, db: Session = Depends(get_db)) -> list[Book
     return [BookOut.from_model(b) for b in rows]
 
 
-@router.delete("/{book_id}/unsubscribe", status_code=204)
+@router.delete("/{book_id}/unsubscribe")
 def unsubscribe_book(
     book_id: int, user: CurrentUser, db: Session = Depends(get_db)
 ) -> ResponseMsg:
