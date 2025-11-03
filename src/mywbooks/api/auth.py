@@ -7,6 +7,10 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from mywbooks import models
 
 ISSUER = os.getenv("SUPABASE_ISSUER", "").rstrip("/")
 AUDIENCE = os.getenv("SUPABASE_AUDIENCE", "authenticated")
@@ -106,6 +110,40 @@ def verify_jwt(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> UserClai
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
+
+
+def get_or_create_user_by_sub(db: Session, claims: UserClaims) -> models.User:
+    sub = claims.get("sub")
+    if not sub:
+        raise HTTPException(status_code=401, detail="JWT missing 'sub' claim")
+
+    # Optional: detect your provider from ISSUER
+    provider = "supabase"
+
+    u = db.execute(
+        select(models.User).where(
+            models.User.auth_provider == provider, models.User.auth_subject == sub
+        )
+    ).scalar_one_or_none()
+
+    if u:
+        # keep email fresh if present
+        email = claims.get("email")
+        if email and u.email != email:
+            u.email = email
+            db.commit()
+        return u
+
+    # First time we see this subject: create a row.
+    u = models.User(
+        auth_provider=provider,
+        auth_subject=sub,
+        email=claims.get("email"),
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
 
 
 CurrentUser = Annotated[UserClaims, Depends(verify_jwt)]

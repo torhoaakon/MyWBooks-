@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mywbooks import models
-from mywbooks.api.auth import CurrentUser, UserClaims
+from mywbooks.api.auth import CurrentUser, UserClaims, get_or_create_user_by_sub
 from mywbooks.book import DEFAILT_EPUB_DIR
 from mywbooks.db import get_db
 from mywbooks.download_manager import DownlaodManager, get_dm
@@ -76,40 +76,6 @@ class DownloadBookNowResponse(ResponseMsg):
 # --- Helpers ------------------------------------------------------------------
 
 
-def _get_or_create_user_by_sub(db: Session, claims: UserClaims) -> models.User:
-    sub = claims.get("sub")
-    if not sub:
-        raise HTTPException(status_code=401, detail="JWT missing 'sub' claim")
-
-    # Optional: detect your provider from ISSUER
-    provider = "supabase"
-
-    u = db.execute(
-        select(models.User).where(
-            models.User.auth_provider == provider, models.User.auth_subject == sub
-        )
-    ).scalar_one_or_none()
-
-    if u:
-        # keep email fresh if present
-        email = claims.get("email")
-        if email and u.email != email:
-            u.email = email
-            db.commit()
-        return u
-
-    # First time we see this subject: create a row.
-    u = models.User(
-        auth_provider=provider,
-        auth_subject=sub,
-        email=claims.get("email"),
-    )
-    db.add(u)
-    db.commit()
-    db.refresh(u)
-    return u
-
-
 # --- Routes -------------------------------------------------------------------
 
 
@@ -134,7 +100,7 @@ def add_royalroad_book(
         book_id = ingest.upsert_royalroad_book_from_url(db, url, dm)
 
     # 2) Map Supabase user → local User and subscribe
-    local_user = _get_or_create_user_by_sub(db, user)
+    local_user = get_or_create_user_by_sub(db, user)
     add_book_to_user(db, local_user.id, book_id)
 
     # 3) Return the book
@@ -149,7 +115,7 @@ def list_my_books(user: CurrentUser, db: Session = Depends(get_db)) -> list[Book
     """
     List books the current user has in their library (subscriptions).
     """
-    local_user = _get_or_create_user_by_sub(db, user)
+    local_user = get_or_create_user_by_sub(db, user)
 
     q = (
         select(models.Book)
@@ -170,7 +136,7 @@ def unsubscribe_book(
     """
     Remove the current user's subscription to a book (keeps the book for others).
     """
-    local_user = _get_or_create_user_by_sub(db, user)
+    local_user = get_or_create_user_by_sub(db, user)
 
     # Flip in_library = False if the row exists; otherwise nothing to do.
     link = db.execute(
@@ -195,7 +161,7 @@ def download_book_now(
     """
     Queue a download/export job and return a task id the client can poll.
     """
-    local_user = _get_or_create_user_by_sub(db, user)
+    local_user = get_or_create_user_by_sub(db, user)
 
     # Must be subscribed
     rel = db.execute(
@@ -234,7 +200,7 @@ def download_book_for_task(
     user: CurrentUser,
     db: Session = Depends(get_db),
 ):
-    local_user = _get_or_create_user_by_sub(db, user)
+    local_user = get_or_create_user_by_sub(db, user)
 
     task: models.Task | None = db.get(models.Task, task_id)
     if not task:
