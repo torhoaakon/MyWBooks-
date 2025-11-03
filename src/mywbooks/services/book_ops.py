@@ -15,6 +15,7 @@ from mywbooks.ebook_generator import (
     ExtractOptions,
 )
 from mywbooks.providers import get_provider_by_key
+from mywbooks.providers.base import Fiction
 from mywbooks.utils import utcnow
 
 from .ingest import _upsert_book_meta  # uses list_chapter_refs()
@@ -33,11 +34,11 @@ def upsert_fiction_toc(
     Returns number of chapter refs discovered (not inserted count).
     """
     prov = get_provider_by_key(book.provider)
-    meta, refs = prov.discover_fiction(dm, Url(book.source_url))
+    fic: Fiction = prov.discover_fiction(dm, Url(book.source_url))
 
-    _upsert_book_meta(db, prov, meta, book=book, do_inserts=do_inserts)
-    _upsert_chapter_index_from_refs(db, prov, refs, book.id)
-    return len(refs)
+    _upsert_book_meta(db, prov, fic.meta, book=book, do_inserts=do_inserts)
+    _upsert_chapter_index_from_refs(db, prov, fic.chapter_refs, book.id)
+    return len(fic.chapter_refs)
 
 
 def ensure_chapter_content(

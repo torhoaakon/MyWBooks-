@@ -17,7 +17,7 @@ from .services.book_ops import export_book_to_epub_from_db, upsert_fiction_toc
 from .utils import utcnow
 
 
-@dramatiq.actor(max_retries=3)
+@dramatiq.actor(max_retries=1)
 def download_book_task(task_id: int) -> None:
     db = SessionLocal()
     try:
@@ -58,7 +58,7 @@ def download_book_task(task_id: int) -> None:
             "include-images",
             "include-chapter-titles",
             "image-resize-max",
-            "css-filepath",
+            "epub-css-filepath",
         ]
         cfg = EbookGeneratorConfig(
             book_config=bcfg,

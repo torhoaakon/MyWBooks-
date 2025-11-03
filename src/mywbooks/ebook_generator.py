@@ -48,7 +48,7 @@ class ChapterPageExtractor(ABC):
 class EbookGeneratorConfig(NamedTuple):
     book_config: BookConfig
 
-    css_filepath: Path  # = KINDLE_CSS_DEFAULT
+    # css_filepath: Path # = KINDLE_CSS_DEFAULT
 
     include_images: bool = True
     include_chapter_titles: bool = False
@@ -182,7 +182,7 @@ class EbookGenerator:
         ebook.set_language(cf.language)
         ebook.add_author(cf.author)
 
-        with open(self.config.css_filepath, "rb") as f:
+        with open(self.config.epub_css_filepath, "rb") as f:
             css = epub.EpubItem(
                 uid="default",
                 file_name=self.config.epub_css_filepath,  # This is a bit strange ?

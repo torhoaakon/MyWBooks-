@@ -18,6 +18,8 @@ def upsert_royalroad_book_from_url(
 ) -> int:
     prov: Provider = get_provider_by_key(ProviderKey.ROYALROAD)
 
+    # TODO: Combine with upsert_fiction_toc
+
     fic: Fiction = prov.discover_fiction(dm, Url(str(fiction_url)))
 
     book_id = _upsert_book_meta(
