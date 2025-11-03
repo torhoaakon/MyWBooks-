@@ -4,6 +4,8 @@ from typing import Any, AsyncGenerator, Iterable
 
 import dotenv
 
+from mywbooks.api.routers import tasks
+
 dotenv.load_dotenv()
 
 import os
@@ -39,6 +41,7 @@ app.add_middleware(
 
 
 app.include_router(books.router, prefix="/api/books", tags=["books"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["books"])
 
 
 @app.get("/health")
