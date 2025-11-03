@@ -59,6 +59,8 @@ def me(user: CurrentUser) -> dict[str, Any]:
 
 @app.get("/tasks/{task_id}")
 def get_task(task_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
+    # TODO: Check user
+
     task = db.get(models.Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
