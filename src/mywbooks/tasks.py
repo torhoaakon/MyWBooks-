@@ -6,7 +6,7 @@ import dramatiq
 from pydantic_core import Url
 
 from mywbooks import models
-from mywbooks.book import DEFAULT_COVER_URL, BookConfig
+from mywbooks.book import DEFAILT_EPUB_DIR, DEFAULT_COVER_URL, BookConfig
 from mywbooks.ebook_generator import EbookGeneratorConfig
 
 from . import queue  # This import is IMPORTANT
@@ -37,7 +37,7 @@ def download_book_task(task_id: int) -> None:
         payload: dict[str, Any] = task.payload or {}
 
         dm = DownlaodManager(Path("./cache"))
-        out_dir = Path("var/epubs")
+        out_dir = DEFAILT_EPUB_DIR
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"book-{book.id}.epub"
 

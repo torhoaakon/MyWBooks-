@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, HttpUrl, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mywbooks import models
 from mywbooks.api.auth import CurrentUser, UserClaims
+from mywbooks.book import DEFAILT_EPUB_DIR
 from mywbooks.db import get_db
 from mywbooks.download_manager import DownlaodManager, get_dm
 from mywbooks.library import add_book_to_user
@@ -192,9 +195,7 @@ def download_book_now(
     """
     Queue a download/export job and return a task id the client can poll.
     """
-    local_user = _get_or_create_user_by_sub(
-        db, user
-    )  # existing helper :contentReference[oaicite:2]{index=2}
+    local_user = _get_or_create_user_by_sub(db, user)
 
     # Must be subscribed
     rel = db.execute(
@@ -224,4 +225,71 @@ def download_book_now(
 
     return DownloadBookNowResponse(
         ok=True, task_id=task.id, task_status=models.TaskStatus(task.status)
+    )
+
+
+@router.get("/tasks/{task_id}/download")
+def download_book_for_task(
+    task_id: int,
+    user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    local_user = _get_or_create_user_by_sub(db, user)
+
+    task: models.Task | None = db.get(models.Task, task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+
+    # Enforce ownership
+    if task.user_id != local_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+
+    if task.status != models.TaskStatus.SUCCEEDED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task is not finished yet",
+        )
+
+    payload = task.payload or {}
+    output_path = payload.get("output_path")
+    if not output_path:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No output file registered for this task",
+        )
+
+    path = Path(output_path).resolve()
+
+    # Basic safety: ensure the file is under our expected epub directory
+    try:
+        path.relative_to(DEFAILT_EPUB_DIR)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid output path",
+        )
+
+    if not path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
+
+    # Optional nicer filename based on book title
+    book: models.Book | None = db.get(models.Book, task.book_id)
+    if book and book.title:
+        safe_title = "".join(
+            c for c in book.title if c.isalnum() or c in (" ", "_", "-")
+        )
+        filename = f"{safe_title or 'book'}-{book.id}.epub"
+    else:
+        filename = path.name
+
+    return FileResponse(
+        path,
+        media_type="application/epub+zip",
+        filename=filename,
     )
