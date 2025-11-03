@@ -1,6 +1,7 @@
 # Project specific
 cache
 out
+var
 
 # Env
 .env
@@ -23,3 +24,4 @@ wheels/
 mywbooks.db
 TODO
 dump.rdb
+
