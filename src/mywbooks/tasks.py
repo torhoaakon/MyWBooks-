@@ -39,7 +39,7 @@ def download_book_task(task_id: int) -> None:
         dm = DownlaodManager(Path("./cache"))
         out_dir = DEFAILT_EPUB_DIR
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / f"book-{book.id}.epub"
+        out_path = out_dir / f"book-{book.id}-task-{task.id}.epub"
 
         # NOTE: Should probably not be doing this her here
         upsert_fiction_toc(
