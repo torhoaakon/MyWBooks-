@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mywbooks import models
-from mywbooks.api.auth import CurrentUser, UserClaims, get_or_create_user_by_sub
+from mywbooks.api.auth import CurrentUser, get_or_create_user_by_sub
 from mywbooks.book import DEFAILT_EPUB_DIR
 from mywbooks.db import get_db
 from mywbooks.download_manager import DownlaodManager, get_dm
@@ -230,10 +230,12 @@ def download_book_for_task(
 
     path = Path(output_path).resolve()
 
-    # Basic safety: ensure the file is under our expected epub directory
+    # ensure the file is under our expected epub directory
     try:
-        path.relative_to(DEFAILT_EPUB_DIR)
-    except ValueError:
+        epubdir = Path(DEFAILT_EPUB_DIR.absolute())
+        path.relative_to(epubdir)
+    except ValueError as e:
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid output path",

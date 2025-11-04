@@ -41,7 +41,7 @@ app.add_middleware(
 
 
 app.include_router(books.router, prefix="/api/books", tags=["books"])
-app.include_router(tasks.router, prefix="/api/tasks", tags=["books"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 
 
 @app.get("/health")
@@ -57,23 +57,4 @@ def me(user: CurrentUser) -> dict[str, Any]:
         "email": user.get("email"),
         "role": user.get("role"),
         "aud": user.get("aud"),
-    }
-
-
-@app.get("/tasks/{task_id}")
-def get_task(task_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
-    # TODO: Check user
-
-    task = db.get(models.Task, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {
-        "id": task.id,
-        "type": task.type,
-        "status": task.status,
-        "payload": task.payload,
-        "error": task.error,
-        "created_at": task.created_at.isoformat(),
-        "started_at": task.started_at.isoformat() if task.started_at else None,
-        "finished_at": task.finished_at.isoformat() if task.finished_at else None,
     }

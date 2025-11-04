@@ -1,21 +1,24 @@
 from datetime import datetime
 from typing import Any, Sequence
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.exceptions import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from mywbooks import models
 from mywbooks.api.auth import CurrentUser, get_or_create_user_by_sub
 from mywbooks.db import get_db  # adjust path if needed
 from mywbooks.models import Task, TaskStatus  # adjust imports
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter()
 
 
 class TaskOut(BaseModel):
     id: int
     book_id: int
+    # user_id: int ???
     status: TaskStatus
     error: str | None = None
     created_at: datetime
@@ -29,7 +32,7 @@ class TaskOut(BaseModel):
         # or: orm_mode = True  (if you're still on Pydantic v1)
 
 
-@router.get("/", response_model=list[TaskOut])
+@router.get("", response_model=list[TaskOut])
 def list_my_tasks(
     current_user: CurrentUser,
     db: Session = Depends(get_db),
@@ -66,4 +69,36 @@ def list_my_tasks(
     stmt = stmt.order_by(Task.created_at.desc()).offset(offset).limit(limit)
 
     tasks: Sequence[Task] = db.scalars(stmt).all()
+
     return tasks
+
+
+@router.get("/{task_id}")
+def get_task(
+    task_id: int, user: CurrentUser, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    # TODO: Check user
+    local_user = get_or_create_user_by_sub(db, user)
+
+    task = db.get(models.Task, task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+
+    # Enforce ownership
+    if task.user_id != local_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+
+    return {
+        "id": task.id,
+        "type": task.type,
+        "status": task.status,
+        "payload": task.payload,
+        "error": task.error,
+        "created_at": task.created_at.isoformat(),
+        "started_at": task.started_at.isoformat() if task.started_at else None,
+        "finished_at": task.finished_at.isoformat() if task.finished_at else None,
+    }
