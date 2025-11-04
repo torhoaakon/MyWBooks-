@@ -21,7 +21,7 @@ from mywbooks.tasks import download_book_task
 router = APIRouter()
 
 
-# --- Schemas ------------------------------------------------------------------
+# --- Schemas ----------------------------------------------------------
 
 
 class AddRoyalRoadBody(BaseModel):

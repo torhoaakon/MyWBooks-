@@ -10,9 +10,13 @@ from sqlalchemy.orm import Session
 from mywbooks import models
 from mywbooks.api.auth import CurrentUser, get_or_create_user_by_sub
 from mywbooks.db import get_db  # adjust path if needed
-from mywbooks.models import Task, TaskStatus  # adjust imports
+from mywbooks.models import Task, TaskStatus
+from mywbooks.task_cleanup import run_task_cleanup  # adjust imports
 
 router = APIRouter()
+
+
+# --- Response Schemas ------------------------------------------------
 
 
 class TaskOut(BaseModel):
@@ -30,6 +34,14 @@ class TaskOut(BaseModel):
     class Config:
         from_attributes = True  # SQLAlchemy 2.x compatible
         # or: orm_mode = True  (if you're still on Pydantic v1)
+
+
+class CleanupResponse(BaseModel):
+    ok: bool
+    deleted: int
+
+
+# --- Routes ----------------------------------------------------------
 
 
 @router.get("", response_model=list[TaskOut])
@@ -102,3 +114,39 @@ def get_task(
         "started_at": task.started_at.isoformat() if task.started_at else None,
         "finished_at": task.finished_at.isoformat() if task.finished_at else None,
     }
+
+
+@router.delete("/book/{book_id}", response_model=CleanupResponse)
+def cleanup_tasks_for_book(
+    book_id: int,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+) -> CleanupResponse:
+    """
+    Delete all finished tasks for the given book owned by the current user,
+    and run per-task cleanup (e.g. delete EPUB files).
+    """
+    local_user = get_or_create_user_by_sub(db, current_user)
+
+    stmt = (
+        select(Task)
+        .where(
+            Task.user_id == local_user.id,
+            Task.book_id == book_id,
+            Task.finished_at.is_not(None),
+        )
+        .order_by(Task.created_at.desc())
+    )
+
+    tasks = db.scalars(stmt).all()
+
+    deleted = 0
+    for task in tasks:
+        # Run per-task cleanup (e.g. remove EPUB file for SUCCEEDED tasks)
+        run_task_cleanup(task)
+        db.delete(task)
+        deleted += 1
+
+    db.commit()
+
+    return CleanupResponse(ok=True, deleted=deleted)
