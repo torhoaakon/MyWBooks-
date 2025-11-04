@@ -13,7 +13,7 @@ from .download_manager import DownlaodManager
 from .utils import url_hash
 
 DEFAULT_COVER_URL = Url("https://www.royalroad.com/favicon.ico")
-DEFAILT_EPUB_DIR = Path("var/epubs")
+EPUB_DIR = Path("var/epubs").absolute()
 
 
 ImageID = str

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from mywbooks import models
 from mywbooks.api.auth import CurrentUser, get_or_create_user_by_sub
-from mywbooks.book import DEFAILT_EPUB_DIR
+from mywbooks.book import EPUB_DIR
 from mywbooks.db import get_db
 from mywbooks.download_manager import DownlaodManager, get_dm
 from mywbooks.library import add_book_to_user
@@ -232,8 +232,7 @@ def download_book_for_task(
 
     # ensure the file is under our expected epub directory
     try:
-        epubdir = Path(DEFAILT_EPUB_DIR.absolute())
-        path.relative_to(epubdir)
+        path.relative_to(EPUB_DIR)
     except ValueError as e:
         print(e)
         raise HTTPException(

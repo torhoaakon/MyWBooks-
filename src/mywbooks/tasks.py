@@ -6,13 +6,14 @@ import dramatiq
 from pydantic_core import Url
 
 from mywbooks import models
-from mywbooks.book import DEFAILT_EPUB_DIR, DEFAULT_COVER_URL, BookConfig
+from mywbooks.book import DEFAULT_COVER_URL, EPUB_DIR, BookConfig
 from mywbooks.ebook_generator import EbookGeneratorConfig
+from mywbooks.task_cleanup import register_cleanup
 
 from . import queue  # This import is IMPORTANT
 from .db import SessionLocal
 from .download_manager import DownlaodManager
-from .models import Book, Task, TaskStatus
+from .models import Book, Task, TaskStatus, TaskType
 from .services.book_ops import export_book_to_epub_from_db, upsert_fiction_toc
 from .utils import utcnow
 
@@ -37,7 +38,7 @@ def download_book_task(task_id: int) -> None:
         payload: dict[str, Any] = task.payload or {}
 
         dm = DownlaodManager(Path("./cache"))
-        out_dir = DEFAILT_EPUB_DIR
+        out_dir = EPUB_DIR
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"book-{book.id}-task-{task.id}.epub"
 
@@ -82,3 +83,18 @@ def download_book_task(task_id: int) -> None:
         raise  # let Dramatiq retry
     finally:
         db.close()
+
+
+@register_cleanup(TaskType.DOWNLOAD_BOOK)
+def cleanup_download_book(task: Task) -> None:
+    payload = task.payload or {}
+    output_path = payload.get("output_path")
+    if not output_path:
+        return
+    path = Path(output_path).resolve()
+    try:
+        path.relative_to(EPUB_DIR)
+    except ValueError:
+        return
+    if path.exists():
+        path.unlink()
