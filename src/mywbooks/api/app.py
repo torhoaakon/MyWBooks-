@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, AsyncGenerator, Iterable
+from typing import Any, AsyncGenerator
 
 import dotenv
 
@@ -8,15 +8,12 @@ from mywbooks.api.routers import tasks
 
 dotenv.load_dotenv()
 
-import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 
-from .. import models
-from ..db import get_db, init_db
+from ..db import init_db
 from .auth import CurrentUser
 from .routers import books
 
@@ -28,7 +25,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 
-app = FastAPI(title="MyWBooks API", lifespan=lifespan)
+app = FastAPI(
+    title="MyWBooks API",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
 
 # CORS (adjust to your frontend origin)
 app.add_middleware(
@@ -39,17 +42,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+api_router = APIRouter(prefix="/api")
+api_router.include_router(books.router, prefix="/books", tags=["books"])
+api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 
-app.include_router(books.router, prefix="/api/books", tags=["books"])
-app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(api_router)
 
 
-@app.get("/health")
+@api_router.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True}
 
 
-@app.get("/me")
+@api_router.get("/me")
 def me(user: CurrentUser) -> dict[str, Any]:
     # Typical claims you’ll see: sub, email, role, aud, exp, iat
     return {
