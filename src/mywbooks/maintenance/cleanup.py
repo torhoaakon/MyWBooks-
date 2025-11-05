@@ -70,7 +70,7 @@ if __name__ == "__main__":
         case "once":
             cleanup_once()
         case "loop":
-            main_loop()
+            cleanup_loop()
         case _:
             sys.stderr.write(
                 f"Invalid argument '{sys.argv[1]}':\n please specify 'once' or 'loop'\n"
